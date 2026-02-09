@@ -1,0 +1,82 @@
+
+You are required to help me **design, complete, and finalize an Android mobile application (Kotlin)** for a **Smart VIP Parking Facility**.
+
+### Application Overview
+
+The application supports **two types of users**:
+
+1. **Admin (Parking Manager)**
+2. **Vehicle Owner (Customer)**
+
+The system uses:
+
+* **QR code tokens** for parking access
+* **Firebase real-time database** for data storage
+* **JSON data handling**
+* **Google Maps integration** for parking lot locations
+
+---
+
+### Admin (Parking Manager) – Features
+
+The Admin manages the entire parking system.
+
+**Required functionalities:**
+
+* Register and manage vehicle owners
+* Register and manage vehicle details
+* Create and manage parking lots
+* Define parking rates (normal, VIP, hourly, overnight)
+* Scan QR codes for vehicle entry and exit
+* Record vehicle time-in and time-out
+* Automatically calculate parking charges
+* Generate monthly parking reports
+* Generate monthly invoices
+* Calculate and manage overdue charges
+
+---
+
+### Vehicle Owner (Customer) – Features
+
+The Vehicle Owner uses the parking facility and views personal parking data.
+
+**Required functionalities:**
+
+* View personal profile details
+* View registered vehicle information
+* Display QR code token for parking access
+* View parking history (date, time-in, time-out)
+* View parking charges
+* View monthly invoices
+* View overdue charges
+* View parking lot details and location on Google Maps
+
+---
+
+### Student Tasks / Project Requirements
+
+* Analyze the given case study
+* Implement **Admin Dashboard** and **Vehicle Owner Dashboard**
+* Integrate **Firebase Database**
+* Implement **QR code generation and scanning**
+* Integrate **Google Maps API**
+* Demonstrate **JSON data usage**
+* Test the application using sample data
+* Prepare a **user manual**
+
+---
+
+### Current Project Status
+
+* The app currently supports **login and signup**
+* Users can navigate to a **basic dashboard**
+* The dashboard currently only allows entering a **vehicle number**
+
+---
+
+### What I Need Help With
+
+I need assistance to **connect all components**, **implement the missing features**, **integrate Firebase, QR scanning, and Maps**, and **finalize the app into a fully working, complete Smart VIP Parking application** using **Kotlin**.
+
+Please guide me step-by-step and help implement the remaining features cleanly and correctly.
+

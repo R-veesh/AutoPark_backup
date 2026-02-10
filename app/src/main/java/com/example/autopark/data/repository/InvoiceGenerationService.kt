@@ -163,7 +163,7 @@ class InvoiceGenerationService @Inject constructor(
             
             for (user in users) {
                 if (user.role == "driver") {
-                    val result = processUserOverdueInvoices(user.id, currentTime)
+                    val result = processUserOverdueInvoices(user.id, user.name, currentTime)
                     if (result.isSuccess) {
                         overdueCount.add(user.id)
                     }
@@ -179,7 +179,7 @@ class InvoiceGenerationService @Inject constructor(
     /**
      * Process overdue invoices for a specific user
      */
-    private suspend fun processUserOverdueInvoices(userId: String, currentTime: Long): Result<List<OverdueCharge>> {
+    private suspend fun processUserOverdueInvoices(userId: String, ownerName: String, currentTime: Long): Result<List<OverdueCharge>> {
         return try {
             val pendingInvoicesResult = invoiceRepository.getPendingInvoices(userId)
             val pendingInvoices = pendingInvoicesResult.getOrNull() ?: emptyList()
@@ -198,7 +198,7 @@ class InvoiceGenerationService @Inject constructor(
                         if (existingCharges.isEmpty()) {
                             val overdueCharge = OverdueCharge(
                                 ownerId = userId,
-                                ownerName = "", // Will be populated from user data
+                                ownerName = ownerName,
                                 invoiceId = invoice.id,
                                 invoiceNumber = invoice.invoiceNumber,
                                 originalAmount = invoice.totalAmount,

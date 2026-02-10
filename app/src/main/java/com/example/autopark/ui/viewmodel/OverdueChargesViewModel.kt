@@ -39,9 +39,13 @@ class OverdueChargesViewModel @Inject constructor(
     private var listenerRegistration: ListenerRegistration? = null
 
     private fun parseOverdueChargeFromDocument(docId: String, data: Map<String, Any?>?): OverdueCharge? {
-        if (data == null) return null
+        if (data == null) {
+            Log.w("OverdueChargesVM", "Document $docId has null data")
+            return null
+        }
         return try {
-            OverdueCharge(
+            Log.d("OverdueChargesVM", "Parsing document $docId with fields: ${data.keys}")
+            val charge = OverdueCharge(
                 id = docId,
                 ownerId = data["ownerId"] as? String ?: "",
                 ownerName = data["ownerName"] as? String ?: "",
@@ -62,8 +66,10 @@ class OverdueChargesViewModel @Inject constructor(
                 createdAt = TimestampUtils.toMillis(data["createdAt"]),
                 updatedAt = TimestampUtils.toMillis(data["updatedAt"])
             )
+            Log.d("OverdueChargesVM", "Successfully parsed charge for owner: ${charge.ownerName}")
+            charge
         } catch (e: Exception) {
-            Log.e("OverdueChargesVM", "Error parsing charge: ${e.message}")
+            Log.e("OverdueChargesVM", "Error parsing charge $docId: ${e.message}", e)
             null
         }
     }
@@ -100,20 +106,25 @@ class OverdueChargesViewModel @Inject constructor(
             listenerRegistration = db.collection("overdue_charges")
                 .addSnapshotListener { snapshot, error ->
                     if (error != null) {
+                        Log.e("OverdueChargesVM", "Firestore error: ${error.message}")
                         _errorMessage.value = error.message ?: "Failed to load overdue charges"
                         _isLoading.value = false
                         return@addSnapshotListener
                     }
 
                     if (snapshot != null) {
+                        Log.d("OverdueChargesVM", "Received ${snapshot.documents.size} documents from Firestore")
                         val chargesList = snapshot.documents.mapNotNull { doc ->
                             parseOverdueChargeFromDocument(doc.id, doc.data)
                         }
+                        Log.d("OverdueChargesVM", "Successfully parsed ${chargesList.size} charges")
                         _overdueCharges.value = chargesList
                         _totalOverdue.value = chargesList
                             .filter { it.status == "PENDING" }
                             .sumOf { it.totalAmount }
                         _errorMessage.value = null
+                    } else {
+                        Log.w("OverdueChargesVM", "Snapshot is null")
                     }
                     _isLoading.value = false
                 }

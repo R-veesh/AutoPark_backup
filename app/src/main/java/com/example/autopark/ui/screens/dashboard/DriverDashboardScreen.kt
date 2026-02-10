@@ -50,12 +50,13 @@ fun DriverDashboardScreen(
             description = "View registered vehicles",
             route = "driver_vehicles"
         ),
-        DashboardItem(
-            title = "Parking QR Code",
-            icon = Icons.Default.ArrowDropDown,
-            description = "Display your parking QR code",
-            route = "driver_qr_display/"
-        ),
+//          ane uththo mke eral mata puke era ganna epa bn ubata
+//        DashboardItem(
+//            title = "Parking QR Code",
+//            icon = Icons.Default.ArrowDropDown,
+//            description = "Display your parking QR code",
+//            route = "driver_qr_display/"
+//        ),
         DashboardItem(
             title = "Parking History",
             icon = Icons.Default.ArrowDropDown,

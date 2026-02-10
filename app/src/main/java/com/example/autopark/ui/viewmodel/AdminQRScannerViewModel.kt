@@ -1,16 +1,18 @@
 package com.example.autopark.ui.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.autopark.data.model.ParkingLot
 import com.example.autopark.data.model.ParkingTransaction
-import com.example.autopark.data.model.Vehicle
 import com.example.autopark.data.repository.ParkingLotRepository
 import com.example.autopark.data.repository.ParkingTransactionRepository
 import com.example.autopark.data.repository.VehicleRepository
 import com.example.autopark.util.QRCodeValidator
+import com.example.autopark.util.TimestampUtils
 import com.example.autopark.util.ValidationResult
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -41,27 +43,69 @@ class AdminQRScannerViewModel @Inject constructor(
     private val _lastScannedData = MutableStateFlow<QRScannedData?>(null)
     val lastScannedData: StateFlow<QRScannedData?> = _lastScannedData.asStateFlow()
 
+    private var parkingLotsListener: ListenerRegistration? = null
+
+    private fun parseParkingLotFromDocument(docId: String, data: Map<String, Any?>?): ParkingLot? {
+        if (data == null) return null
+        return try {
+            ParkingLot(
+                id = docId,
+                name = data["name"] as? String ?: "",
+                address = data["address"] as? String ?: "",
+                latitude = (data["latitude"] as? Number)?.toDouble() ?: 0.0,
+                longitude = (data["longitude"] as? Number)?.toDouble() ?: 0.0,
+                city = data["city"] as? String ?: "",
+                state = data["state"] as? String ?: "",
+                zipCode = data["zipCode"] as? String ?: "",
+                totalSpots = (data["totalSpots"] as? Number)?.toInt() ?: 0,
+                availableSpots = (data["availableSpots"] as? Number)?.toInt() ?: 0,
+                description = data["description"] as? String ?: "",
+                contactNumber = data["contactNumber"] as? String ?: "",
+                openingTime = data["openingTime"] as? String ?: "",
+                closingTime = data["closingTime"] as? String ?: "",
+                is24Hours = data["is24Hours"] as? Boolean ?: false,
+                createdAt = TimestampUtils.toMillis(data["createdAt"]),
+                updatedAt = TimestampUtils.toMillis(data["updatedAt"])
+            )
+        } catch (e: Exception) {
+            Log.e("AdminQRScannerVM", "Error parsing parking lot: ${e.message}")
+            null
+        }
+    }
+
     fun loadParkingLots() {
         viewModelScope.launch {
             _isLoading.value = true
-            try {
-                val result = parkingLotRepository.getAllParkingLots()
-                result.onSuccess { lots ->
-                    _parkingLots.value = lots
-                    _errorMessage.value = null
-                }.onFailure { error ->
-                    _errorMessage.value = error.message ?: "Failed to load parking lots"
+            
+            // Remove previous listener
+            parkingLotsListener?.remove()
+            
+            // Set up real-time listener
+            parkingLotsListener = db.collection("parking_lots")
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) {
+                        Log.e("AdminQRScannerVM", "Listen failed: ${error.message}")
+                        _errorMessage.value = error.message ?: "Failed to load parking lots"
+                        _isLoading.value = false
+                        return@addSnapshotListener
+                    }
+
+                    if (snapshot != null) {
+                        val lots = snapshot.documents.mapNotNull { doc ->
+                            parseParkingLotFromDocument(doc.id, doc.data)
+                        }
+                        _parkingLots.value = lots
+                        _errorMessage.value = null
+                        Log.d("AdminQRScannerVM", "Loaded ${lots.size} parking lots")
+                    }
+                    _isLoading.value = false
                 }
-            } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "Unknown error loading parking lots"
-            } finally {
-                _isLoading.value = false
-            }
         }
     }
 
     fun selectParkingLot(parkingLot: ParkingLot) {
         _selectedParkingLot.value = parkingLot
+        Log.d("AdminQRScannerVM", "Selected parking lot: ${parkingLot.name} (${parkingLot.id})")
     }
 
     fun processQRCode(qrCode: String): QRScannedData? {
@@ -273,6 +317,11 @@ class AdminQRScannerViewModel @Inject constructor(
 
     fun resetScannedData() {
         _lastScannedData.value = null
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        parkingLotsListener?.remove()
     }
 }
 

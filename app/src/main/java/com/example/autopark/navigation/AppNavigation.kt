@@ -135,5 +135,19 @@ fun AppNavigation() {
         composable("driver_parking_lots_map") {
             ParkingLotsMapScreen(navController)
         }
+        composable(
+            route = "parking_slot_selection/{parkingLotId}",
+            arguments = listOf(
+                navArgument("parkingLotId") {
+                    type = NavType.StringType
+                }
+            )
+        ) { backStackEntry ->
+            val parkingLotId = backStackEntry.arguments?.getString("parkingLotId") ?: ""
+            ParkingSlotSelectionScreen(
+                navController = navController,
+                parkingLotId = parkingLotId
+            )
+        }
     }
 }

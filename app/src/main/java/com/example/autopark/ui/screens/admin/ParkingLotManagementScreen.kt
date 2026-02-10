@@ -8,12 +8,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -40,7 +42,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.example.autopark.data.model.ParkingLot
+import com.example.autopark.ui.components.MapLocationPickerDialog
 import com.example.autopark.ui.viewmodel.ParkingLotViewModel
+import com.google.android.gms.maps.model.LatLng
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -194,6 +198,25 @@ fun ParkingLotDialog(
     var latitude by remember { mutableStateOf(lot?.latitude?.toString() ?: "") }
     var longitude by remember { mutableStateOf(lot?.longitude?.toString() ?: "") }
     var contactNumber by remember { mutableStateOf(lot?.contactNumber ?: "") }
+    var showMapPicker by remember { mutableStateOf(false) }
+
+    if (showMapPicker) {
+        val initialLat = latitude.toDoubleOrNull()
+        val initialLng = longitude.toDoubleOrNull()
+        val initialLocation = if (initialLat != null && initialLng != null) {
+            LatLng(initialLat, initialLng)
+        } else null
+        
+        MapLocationPickerDialog(
+            initialLocation = initialLocation,
+            onDismiss = { showMapPicker = false },
+            onLocationSelected = { latLng ->
+                latitude = latLng.latitude.toString()
+                longitude = latLng.longitude.toString()
+                showMapPicker = false
+            }
+        )
+    }
 
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
@@ -261,24 +284,45 @@ fun ParkingLotDialog(
                     )
                 }
                 item {
-                    OutlinedTextField(
-                        value = latitude,
-                        onValueChange = { latitude = it },
-                        label = { Text("Latitude") },
+                    // Location selection row
+                    Card(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(8.dp)
-                    )
-                }
-                item {
-                    OutlinedTextField(
-                        value = longitude,
-                        onValueChange = { longitude = it },
-                        label = { Text("Longitude") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(8.dp)
-                    )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp)
+                        ) {
+                            Text(
+                                "Location Coordinates",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        "Lat: ${latitude.ifEmpty { "Not set" }}",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Text(
+                                        "Lng: ${longitude.ifEmpty { "Not set" }}",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
+                                Button(
+                                    onClick = { showMapPicker = true }
+                                ) {
+                                    Icon(Icons.Default.LocationOn, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Pick on Map")
+                                }
+                            }
+                        }
+                    }
                 }
                 item {
                     OutlinedTextField(

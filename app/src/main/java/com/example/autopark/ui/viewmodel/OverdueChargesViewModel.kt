@@ -37,6 +37,24 @@ class OverdueChargesViewModel @Inject constructor(
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
     private var listenerRegistration: ListenerRegistration? = null
+    private var hasLoaded = false
+
+    init {
+        // Listen to auth state changes and load data when authenticated
+        viewModelScope.launch {
+            authRepository.getAuthState().collect { isAuthenticated ->
+                if (isAuthenticated && !hasLoaded) {
+                    Log.d("OverdueChargesVM", "User authenticated, ready to load")
+                    hasLoaded = true
+                } else if (!isAuthenticated) {
+                    Log.d("OverdueChargesVM", "User not authenticated")
+                    hasLoaded = false
+                    _overdueCharges.value = emptyList()
+                    _totalOverdue.value = 0.0
+                }
+            }
+        }
+    }
 
     private fun parseOverdueChargeFromDocument(docId: String, data: Map<String, Any?>?): OverdueCharge? {
         if (data == null) {
@@ -78,8 +96,20 @@ class OverdueChargesViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
+            
             try {
-                val userId = authRepository.getCurrentUserId()
+                // Small delay to ensure Firebase Auth is fully initialized
+                kotlinx.coroutines.delay(500)
+                
+                var userId = authRepository.getCurrentUserId()
+                
+                // Retry once if userId is null
+                if (userId == null) {
+                    Log.d("OverdueChargesVM", "User ID null, retrying...")
+                    kotlinx.coroutines.delay(1000)
+                    userId = authRepository.getCurrentUserId()
+                }
+                
                 if (userId != null) {
                     Log.d("OverdueChargesVM", "Loading overdue charges for user: $userId")
                     val result = overdueChargeRepository.getPendingOverdueCharges(userId)
@@ -93,8 +123,8 @@ class OverdueChargesViewModel @Inject constructor(
                         _errorMessage.value = error.message ?: "Failed to load overdue charges"
                     }
                 } else {
-                    Log.e("OverdueChargesVM", "User not authenticated")
-                    _errorMessage.value = "User not authenticated"
+                    Log.e("OverdueChargesVM", "User not authenticated after retry")
+                    _errorMessage.value = "User not authenticated. Please login again."
                 }
             } catch (e: Exception) {
                 Log.e("OverdueChargesVM", "Exception loading charges: ${e.message}", e)

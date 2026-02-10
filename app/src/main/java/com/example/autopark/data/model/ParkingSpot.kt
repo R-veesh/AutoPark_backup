@@ -7,6 +7,10 @@ data class ParkingSpot(
     @set:PropertyName("id")
     var id: String = "",
 
+    @get:PropertyName("parkingLotId")
+    @set:PropertyName("parkingLotId")
+    var parkingLotId: String = "",
+
     @get:PropertyName("spotNumber")
     @set:PropertyName("spotNumber")
     var spotNumber: String = "",

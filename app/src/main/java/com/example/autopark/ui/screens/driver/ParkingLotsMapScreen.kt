@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,6 +19,7 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.example.autopark.data.model.ParkingLot
 import com.example.autopark.ui.viewmodel.ParkingLotViewModel
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
@@ -33,6 +35,8 @@ fun ParkingLotsMapScreen(
     val parkingLots by viewModel.parkingLots.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
+    
+    var selectedLot by remember { mutableStateOf<ParkingLot?>(null) }
 
     // Check for location permission
     var hasLocationPermission by remember {
@@ -139,8 +143,101 @@ fun ParkingLotsMapScreen(
                                             com.google.android.gms.maps.model.BitmapDescriptorFactory.HUE_GREEN
                                         else 
                                             com.google.android.gms.maps.model.BitmapDescriptorFactory.HUE_RED
-                                    )
+                                    ),
+                                    onClick = {
+                                        selectedLot = lot
+                                        true
+                                    }
                                 )
+                            }
+                        }
+                    }
+                    
+                    // Selected Lot Bottom Sheet
+                    selectedLot?.let { lot ->
+                        Card(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(16.dp)
+                                .fillMaxWidth(),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp)
+                            ) {
+                                Text(
+                                    text = lot.name,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = lot.address,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = "Available Spots",
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                        Text(
+                                            text = "${lot.availableSpots}/${lot.totalSpots}",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = if (lot.availableSpots > 0) 
+                                                MaterialTheme.colorScheme.primary 
+                                            else 
+                                                MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                    if (lot.contactNumber.isNotEmpty()) {
+                                        Column(horizontalAlignment = Alignment.End) {
+                                            Text(
+                                                text = "Contact",
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                            Text(
+                                                text = lot.contactNumber,
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+                                        }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = { selectedLot = null },
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text("Close")
+                                    }
+                                    Button(
+                                        onClick = { 
+                                            navController.navigate("parking_slot_selection/${lot.id}")
+                                            selectedLot = null
+                                        },
+                                        enabled = lot.availableSpots > 0,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            if (lot.availableSpots > 0) "Select Slot" else "Full"
+                                        )
+                                    }
+                                }
                             }
                         }
                     }

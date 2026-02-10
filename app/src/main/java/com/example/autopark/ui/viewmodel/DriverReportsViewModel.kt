@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import android.util.Log
 import javax.inject.Inject
 
 @HiltViewModel
@@ -73,29 +74,62 @@ class DriverReportsViewModel @Inject constructor(
 
     private var vehiclesListener: ListenerRegistration? = null
     private var transactionsListener: ListenerRegistration? = null
+    private var hasLoaded = false
 
     init {
-        loadDriverData()
+        // Listen to auth state changes and load data when authenticated
+        viewModelScope.launch {
+            authRepository.getAuthState().collect { isAuthenticated ->
+                if (isAuthenticated && !hasLoaded) {
+                    Log.d("DriverReportsVM", "User authenticated, loading data...")
+                    hasLoaded = true
+                    loadDriverData()
+                } else if (!isAuthenticated) {
+                    Log.d("DriverReportsVM", "User not authenticated")
+                    hasLoaded = false
+                    // Clear data when logged out
+                    _driver.value = null
+                    _vehicles.value = emptyList()
+                    _transactions.value = emptyList()
+                }
+            }
+        }
     }
 
     private fun loadDriverData() {
         viewModelScope.launch {
             _isLoading.value = true
+            _errorMessage.value = null
+            
+            // Small delay to ensure Firebase Auth is fully initialized
+            kotlinx.coroutines.delay(500)
+            
             val userId = authRepository.getCurrentUserId()
             
             if (userId != null) {
+                Log.d("DriverReportsVM", "Loading data for user: $userId")
                 // Load driver info
                 val userResult = authRepository.getUserData(userId)
                 userResult.onSuccess { user ->
                     _driver.value = user
                     setupRealTimeListeners(userId)
                 }.onFailure { error ->
+                    Log.e("DriverReportsVM", "Failed to load driver data: ${error.message}")
                     _errorMessage.value = error.message ?: "Failed to load driver data"
+                    _isLoading.value = false
                 }
             } else {
-                _errorMessage.value = "User not authenticated"
+                Log.e("DriverReportsVM", "User ID is null after auth state said authenticated")
+                // Don't show error immediately, retry once
+                kotlinx.coroutines.delay(1000)
+                val retryUserId = authRepository.getCurrentUserId()
+                if (retryUserId != null) {
+                    loadDriverData()
+                } else {
+                    _errorMessage.value = "User not authenticated. Please login again."
+                    _isLoading.value = false
+                }
             }
-            _isLoading.value = false
         }
     }
 

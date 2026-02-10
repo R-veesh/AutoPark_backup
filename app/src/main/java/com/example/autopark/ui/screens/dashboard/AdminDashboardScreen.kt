@@ -126,12 +126,6 @@ fun AdminDashboardScreen(
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
-            Text(
-                text = "Parking Management System",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
             
             Text(
                 text = "Select an option to manage the parking facility",

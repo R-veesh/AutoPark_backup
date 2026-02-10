@@ -1,58 +1,108 @@
-package com.example.autopark.ui.viewmodel
+package com.example.autopark.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.autopark.data.model.ParkingSpot
-import com.example.autopark.data.repository.AuthRepository
-import com.example.autopark.data.repository.ParkingRepository
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import com.example.autopark.auth.AuthManager
+import com.google.firebase.Timestamp
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
-@HiltViewModel
-class ParkingViewModel @Inject constructor(
-    private val authRepository: AuthRepository,
-    private val parkingRepository: ParkingRepository
-) : ViewModel() {
+class ParkingViewModel : ViewModel() {
 
-    private val _parkingSpots = MutableStateFlow<List<ParkingSpot>>(emptyList())
-    val parkingSpots: StateFlow<List<ParkingSpot>> = _parkingSpots.asStateFlow()
+    private val TAG = "ParkingViewModel"
+    private val db = FirebaseFirestore.getInstance()
 
-    private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    /** Confirm vehicle entry by admin */
+    fun confirmVehicle(vehicleNumber: String, vehicleId: String) {
+        val user = AuthManager.currentUser()
 
-    fun loadParkingSpots() {
-        viewModelScope.launch {
-            _isLoading.value = true
-            try {
-                val spots = parkingRepository.getParkingSpots()
-                _parkingSpots.value = spots
-            } catch (e: Exception) {
-                // Handle error
-            } finally {
-                _isLoading.value = false
+        if (user == null) {
+            Log.e(TAG, "User not authenticated")
+            return
+        }
+
+        val data = hashMapOf(
+            "vehicleNumber" to vehicleNumber,
+            "vehicleId" to vehicleId,
+            "adminId" to user.uid,
+            "status" to "IN",
+            "timestamp" to System.currentTimeMillis()
+        )
+
+        db.collection("active_parking")
+            .document(vehicleId)
+            .set(data)
+            .addOnSuccessListener {
+                Log.d(TAG, "Vehicle added successfully: $vehicleNumber")
             }
-        }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Failed to add vehicle: ${e.message}")
+            }
     }
 
-    fun toggleParkingSpot(spotId: String, isOccupied: Boolean) {
+    /** Process QR scan for vehicle entry/exit */
+    fun processQr(vehicleId: String, vehicleNumber: String) {
         viewModelScope.launch {
-            parkingRepository.updateParkingSpotOccupancy(spotId, isOccupied, null)
-            loadParkingSpots() // Refresh the list
+            checkActiveParking(vehicleId, vehicleNumber)
         }
     }
 
-    fun occupyParkingSpot(spotId: String, vehicleNumber: String) {
-        viewModelScope.launch {
-            parkingRepository.updateParkingSpotOccupancy(spotId, true, vehicleNumber)
-            loadParkingSpots() // Refresh the list
-        }
+    /** Check if vehicle already has active parking */
+    private fun checkActiveParking(vehicleId: String, vehicleNumber: String) {
+        db.collection("parkingTransactions")
+            .whereEqualTo("vehicleId", vehicleId)
+            .whereEqualTo("status", "ACTIVE")
+            .get()
+            .addOnSuccessListener { snapshot ->
+                if (snapshot.isEmpty) {
+                    Log.d(TAG, "No active parking found. Creating new entry for $vehicleNumber")
+                    createEntry(vehicleId, vehicleNumber)
+                } else {
+                    Log.d(TAG, "Active parking found. Exiting vehicle $vehicleNumber")
+                    exitParking(snapshot.documents[0].id)
+                }
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Error checking active parking: ${e.message}")
+            }
     }
 
-    fun logout() {
-        authRepository.logout()
+    /** Create a new parking entry */
+    private fun createEntry(vehicleId: String, vehicleNumber: String) {
+        val data = hashMapOf(
+            "vehicleId" to vehicleId,
+            "vehicleNumber" to vehicleNumber,
+            "entryTime" to Timestamp.now(),
+            "exitTime" to null,
+            "status" to "ACTIVE"
+        )
+
+        db.collection("parkingTransactions")
+            .add(data)
+            .addOnSuccessListener {
+                Log.d(TAG, "Parking entry created for $vehicleNumber")
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Failed to create parking entry: ${e.message}")
+            }
+    }
+
+    /** Exit vehicle from parking */
+    private fun exitParking(transactionId: String) {
+        db.collection("parkingTransactions")
+            .document(transactionId)
+            .update(
+                mapOf(
+                    "exitTime" to Timestamp.now(),
+                    "status" to "COMPLETED"
+                )
+            )
+            .addOnSuccessListener {
+                Log.d(TAG, "Vehicle exited successfully: $transactionId")
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Failed to exit parking: ${e.message}")
+            }
     }
 }

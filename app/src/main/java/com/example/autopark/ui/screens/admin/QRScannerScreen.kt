@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -55,14 +56,15 @@ fun QRScannerScreen(
         )
     }
 
+    // Parsed from QR: driver app encodes "vehicleNumber|vehicleId"
     var vehicleNumber by remember { mutableStateOf("") }
+    var scannedVehicleId by remember { mutableStateOf<String?>(null) }
     var scannedCode by remember { mutableStateOf<String?>(null) }
     var isScanning by remember { mutableStateOf(true) }
     var isProcessing by remember { mutableStateOf(false) }
     var showResult by remember { mutableStateOf(false) }
     var transactionResult by remember { mutableStateOf<Result<ParkingTransaction>?>(null) }
 
-    // 🚨 force List type
     val parkingLots: List<ParkingLot> by parkingLotViewModel.parkingLots.collectAsState(initial = emptyList())
     var selectedParkingLot by remember { mutableStateOf<ParkingLot?>(null) }
     var expandedLotDropdown by remember { mutableStateOf(false) }
@@ -84,12 +86,21 @@ fun QRScannerScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("QR Scanner") },
+                title = {
+                    Text(
+                        "QR Scanner",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
             )
         }
     ) { padding ->
@@ -98,7 +109,7 @@ fun QRScannerScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp),
+                .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
@@ -107,30 +118,51 @@ fun QRScannerScreen(
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .aspectRatio(1f)
+                        .aspectRatio(1f),
+                    shape = RoundedCornerShape(20.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                 ) {
                     if (isScanning) {
                         CameraPreviewWithQRScanner { code ->
                             if (scannedCode == null) {
                                 scannedCode = code
-                                vehicleNumber = code
+                                // Driver QR format: "vehicleNumber|vehicleId"
+                                val parts = code.split("|").map { it.trim() }
+                                vehicleNumber = parts.getOrNull(0)?.takeIf { it.isNotBlank() } ?: code
+                                scannedVehicleId = parts.getOrNull(1)?.takeIf { it.isNotBlank() }
                                 isScanning = false
                             }
                         }
                     } else {
                         Column(
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(24.dp),
                             verticalArrangement = Arrangement.Center,
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(80.dp))
-                            Spacer(Modifier.height(8.dp))
-                            Text("Scanned: $vehicleNumber")
+                            Icon(
+                                Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                modifier = Modifier.size(72.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                "Scanned",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                vehicleNumber,
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(20.dp))
 
                 // Parking lot dropdown
                 ExposedDropdownMenuBox(
@@ -138,14 +170,15 @@ fun QRScannerScreen(
                     onExpandedChange = { expandedLotDropdown = !expandedLotDropdown }
                 ) {
                     OutlinedTextField(
-                        value = selectedParkingLot?.id ?: "Select Parking Lot",
+                        value = selectedParkingLot?.let { if (it.name.isNotBlank()) it.name else it.id } ?: "Select Parking Lot",
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("Parking Lot") },
                         trailingIcon = {
                             ExposedDropdownMenuDefaults.TrailingIcon(expandedLotDropdown)
                         },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
                     )
 
                     ExposedDropdownMenu(
@@ -154,7 +187,11 @@ fun QRScannerScreen(
                     ) {
                         parkingLots.forEach { lot ->
                             DropdownMenuItem(
-                                text = { Text(lot.id) },
+                                text = {
+                                    Text(
+                                        if (lot.name.isNotBlank()) lot.name else lot.id
+                                    )
+                                },
                                 onClick = {
                                     selectedParkingLot = lot
                                     expandedLotDropdown = false
@@ -170,27 +207,84 @@ fun QRScannerScreen(
                     value = vehicleNumber,
                     onValueChange = { vehicleNumber = it.uppercase() },
                     label = { Text("Vehicle Number") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
                 )
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(20.dp))
+
+                // Entry: use vehicleId when available (from QR) for reliable lookup
+                Button(
+                    onClick = {
+                        isProcessing = true
+                        val lotId = selectedParkingLot?.id ?: ""
+                        if (scannedVehicleId != null) {
+                            viewModel.processVehicleEntry(
+                                vehicleId = scannedVehicleId!!,
+                                vehicleNumber = vehicleNumber,
+                                parkingLotId = lotId
+                            ) { result ->
+                                transactionResult = result
+                                showResult = true
+                                isProcessing = false
+                            }
+                        } else {
+                            viewModel.processVehicleEntryByNumber(
+                                vehicleNumber,
+                                lotId
+                            ) { result ->
+                                transactionResult = result
+                                showResult = true
+                                isProcessing = false
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = vehicleNumber.isNotBlank() && selectedParkingLot != null && !isProcessing,
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(if (isProcessing) "Processing…" else "Process Entry")
+                }
+
+                Spacer(Modifier.height(10.dp))
 
                 Button(
                     onClick = {
                         isProcessing = true
-                        viewModel.processVehicleEntryByNumber(
-                            vehicleNumber,
-                            selectedParkingLot?.id ?: ""
-                        ) { result ->
-                            transactionResult = result
-                            showResult = true
-                            isProcessing = false
+                        if (scannedVehicleId != null) {
+                            viewModel.processVehicleExit(scannedVehicleId!!) { result ->
+                                transactionResult = result
+                                showResult = true
+                                isProcessing = false
+                            }
+                        } else {
+                            viewModel.processVehicleExitByNumber(vehicleNumber) { result ->
+                                transactionResult = result
+                                showResult = true
+                                isProcessing = false
+                            }
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = vehicleNumber.isNotBlank() && selectedParkingLot != null && !isProcessing
+                    enabled = vehicleNumber.isNotBlank() && !isProcessing,
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Process Entry")
+                    Text("Process Exit")
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                OutlinedButton(
+                    onClick = {
+                        isScanning = true
+                        scannedCode = null
+                        scannedVehicleId = null
+                        vehicleNumber = ""
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Scan Another")
                 }
             }
         }
@@ -203,6 +297,8 @@ fun QRScannerScreen(
                 showResult = false
                 isScanning = true
                 scannedCode = null
+                scannedVehicleId = null
+                vehicleNumber = ""
             }
         )
     }
@@ -284,23 +380,44 @@ fun ScanResultDialog(
 ) {
     val tx = result?.getOrNull()
     val error = result?.exceptionOrNull()
+    val success = tx != null
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (tx != null) "Success" else "Failed") },
+        title = {
+            Text(
+                if (success) "Success" else "Failed",
+                style = MaterialTheme.typography.titleLarge
+            )
+        },
         text = {
-            if (tx != null) {
-                Column {
-                    Text("Vehicle: ${tx.vehicleNumber}")
-                    Text("Status: ${tx.status}")
-                    Text("Charge: ${CurrencyFormatter.formatCurrency(tx.chargeAmount)}")
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (tx != null) {
+                    Text("Vehicle: ${tx.vehicleNumber}", style = MaterialTheme.typography.bodyLarge)
+                    Text("Status: ${tx.status}", style = MaterialTheme.typography.bodyMedium)
+                    if (tx.status == "COMPLETED" && tx.chargeAmount > 0) {
+                        Text(
+                            "Charge: ${CurrencyFormatter.formatCurrency(tx.chargeAmount)}",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                } else {
+                    Text(
+                        error?.message ?: "Unknown error",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
-            } else {
-                Text(error?.message ?: "Unknown error")
             }
         },
         confirmButton = {
-            Button(onClick = onDismiss) { Text("OK") }
+            Button(
+                onClick = onDismiss,
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("OK")
+            }
         }
     )
 }

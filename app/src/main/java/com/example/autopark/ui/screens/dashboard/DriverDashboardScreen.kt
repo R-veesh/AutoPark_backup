@@ -154,13 +154,6 @@ fun DriverDashboardScreen(
             }
 
             Text(
-                text = "Your Parking Portal",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-            
-            Text(
                 text = "Access your parking information and services",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

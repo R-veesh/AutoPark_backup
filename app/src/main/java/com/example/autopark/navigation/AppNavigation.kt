@@ -31,97 +31,108 @@ fun AppNavigation() {
     val authViewModel: AuthViewModel = hiltViewModel()
     val uiState by authViewModel.uiState.collectAsStateWithLifecycle()
 
+    // Navigate based on authentication state
     LaunchedEffect(uiState) {
         when (uiState) {
             is AuthUiState.NotAuthenticated -> {
                 navController.navigate("login") {
-                    popUpTo(0) { inclusive = true }
+                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
                 }
             }
             is AuthUiState.Authenticated -> {
                 val user = (uiState as AuthUiState.Authenticated).user
                 val destination = if (user.role == "admin") "admin_dashboard" else "driver_dashboard"
                 navController.navigate(destination) {
-                    popUpTo("login") { inclusive = true }
+                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
                 }
             }
             is AuthUiState.Error -> {
-                // Handle authentication errors gracefully
-                // Could show a snackbar or navigate to error screen
+                // Optional: show snackbar or navigate to an error screen
             }
-            else -> {}
+            else -> Unit
         }
     }
 
-    NavHost(
-        navController = navController,
-        startDestination = "loading"
-    ) {
+    NavHost(navController = navController, startDestination = "loading") {
+        // Loading Screen
         composable("loading") {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
                 CircularProgressIndicator()
             }
         }
+
+        // Auth Screens
         composable("login") {
-            LoginScreen(navController = navController)
+            LoginScreen(navController)
         }
         composable("register") {
-            RegisterScreen(navController = navController)
+            RegisterScreen(navController)
         }
-        
-        // Admin Routes
+
+        // Admin Screens
         composable("admin_dashboard") {
-            AdminDashboardScreen(navController = navController)
+            AdminDashboardScreen(navController)
         }
         composable("admin_manage_owners") {
-            VehicleOwnerManagementScreen(navController = navController)
+            VehicleOwnerManagementScreen(navController)
         }
         composable("admin_manage_vehicles") {
-            VehicleManagementScreen(navController = navController)
+            VehicleManagementScreen(navController)
         }
         composable("admin_manage_lots") {
-            ParkingLotManagementScreen(navController = navController)
+            ParkingLotManagementScreen(navController)
         }
         composable("admin_manage_rates") {
-            ParkingRateManagementScreen(navController = navController)
+            ParkingRateManagementScreen(navController)
         }
         composable("admin_qr_scanner") {
-            QRScannerScreen(navController = navController)
+            QRScannerScreen(navController)
         }
         composable("admin_reports") {
-            AdminReportsScreen(navController = navController)
+            AdminReportsScreen(navController)
         }
         composable("admin_overdue_charges") {
-            AdminOverdueChargesScreen(navController = navController)
+            AdminOverdueChargesScreen(navController)
         }
         composable("admin_data_import_export") {
-            DataImportExportScreen(navController = navController)
+            DataImportExportScreen(navController)
         }
-        
-        // Driver Routes
+
+        // Driver Screens
         composable("driver_dashboard") {
-            DriverDashboardScreen(navController = navController)
+            DriverDashboardScreen(navController)
         }
         composable("driver_profile") {
-            DriverProfileScreen(navController = navController)
+            DriverProfileScreen(navController)
         }
         composable("driver_vehicles") {
-            DriverVehiclesScreen(navController = navController)
+            DriverVehiclesScreen(navController)
         }
-        composable("driver_qr_display") {
-            QRDisplayScreen(navController = navController)
+        composable(
+            route = "driver_qr_display/{vehicleId?}",
+            arguments = listOf(navArgument("vehicleId") {
+                type = NavType.StringType
+                defaultValue = ""
+                nullable = true
+            })
+        ) { backStackEntry ->
+            val vehicleId = backStackEntry.arguments?.getString("vehicleId") ?: ""
+            QRDisplayScreen(navController, initialVehicleId = vehicleId)
         }
         composable("driver_parking_history") {
-            ParkingHistoryScreen(navController = navController)
+            ParkingHistoryScreen(navController)
         }
         composable("driver_invoices") {
-            InvoiceScreen(navController = navController)
+            InvoiceScreen(navController)
         }
         composable("driver_overdue_charges") {
-            OverdueChargesScreen(navController = navController)
+            OverdueChargesScreen(navController)
         }
         composable("driver_parking_lots_map") {
-            ParkingLotsMapScreen(navController = navController)
+            ParkingLotsMapScreen(navController)
         }
     }
 }

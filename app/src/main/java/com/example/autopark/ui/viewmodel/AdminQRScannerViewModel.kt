@@ -108,6 +108,20 @@ class AdminQRScannerViewModel @Inject constructor(
         Log.d("AdminQRScannerVM", "Selected parking lot: ${parkingLot.name} (${parkingLot.id})")
     }
 
+    fun setManualVehicleNumber(vehicleNumber: String) {
+        _lastScannedData.value?.let { currentData ->
+            _lastScannedData.value = currentData.copy(vehicleNumber = vehicleNumber)
+        } ?: run {
+            // Create new scanned data if none exists
+            _lastScannedData.value = QRScannedData(
+                vehicleNumber = vehicleNumber,
+                vehicleId = "",
+                userId = "",
+                rawCode = vehicleNumber
+            )
+        }
+    }
+
     fun processQRCode(qrCode: String): QRScannedData? {
         return try {
             // Try to parse as new format first (PARKTRACK|userId|vehicleNumber|timestamp|qrType|hash)
@@ -151,8 +165,16 @@ class AdminQRScannerViewModel @Inject constructor(
                 _errorMessage.value = null
                 scannedData
             } else {
-                _errorMessage.value = "Invalid QR code format. Expected format: vehicleNumber|vehicleId|userId"
-                null
+                // Single value - treat as vehicle number
+                val scannedData = QRScannedData(
+                    vehicleNumber = qrCode,
+                    vehicleId = "",
+                    userId = "",
+                    rawCode = qrCode
+                )
+                _lastScannedData.value = scannedData
+                _errorMessage.value = null
+                scannedData
             }
         } catch (e: Exception) {
             _errorMessage.value = "Failed to parse QR code: ${e.message}"
@@ -168,10 +190,12 @@ class AdminQRScannerViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                // Validate parking lot selection
-                val parkingLot = _parkingLots.value.find { it.id == parkingLotId }
+                // Fetch parking lot directly from repository
+                val parkingLotResult = parkingLotRepository.getParkingLot(parkingLotId)
+                val parkingLot = parkingLotResult.getOrNull()
+                
                 if (parkingLot == null) {
-                    callback(Result.failure(Exception("Please select a parking lot")))
+                    callback(Result.failure(Exception("Parking lot not found. Please select again.")))
                     return@launch
                 }
 
@@ -323,11 +347,12 @@ class AdminQRScannerViewModel @Inject constructor(
         super.onCleared()
         parkingLotsListener?.remove()
     }
-}
 
-data class QRScannedData(
-    val vehicleNumber: String,
-    val vehicleId: String,
-    val userId: String,
-    val rawCode: String
-)
+    // Make this a data class so it can be copied
+    data class QRScannedData(
+        val vehicleNumber: String,
+        val vehicleId: String,
+        val userId: String,
+        val rawCode: String
+    )
+}

@@ -10,11 +10,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -30,10 +31,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.example.autopark.data.model.ParkingTransaction
-import com.example.autopark.data.model.ParkingLot
-import com.example.autopark.ui.viewmodel.ParkingTransactionViewModel
-import com.example.autopark.ui.viewmodel.ParkingLotViewModel
 import com.example.autopark.ui.viewmodel.AdminQRScannerViewModel
+import com.example.autopark.ui.viewmodel.ParkingLotViewModel
 import com.example.autopark.util.CurrencyFormatter
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.common.InputImage
@@ -62,15 +61,31 @@ fun QRScannerScreen(
     var showResult by remember { mutableStateOf(false) }
     var transactionResult by remember { mutableStateOf<Result<ParkingTransaction>?>(null) }
 
-    val parkingLots by adminQRViewModel.parkingLots.collectAsStateWithLifecycle()
+    // Use ParkingLotViewModel for parking lots (which works)
+    val parkingLots by parkingLotViewModel.parkingLots.collectAsStateWithLifecycle()
+    val parkingLotsLoading by parkingLotViewModel.isLoading.collectAsStateWithLifecycle()
+    val parkingLotsError by parkingLotViewModel.errorMessage.collectAsStateWithLifecycle()
+    
     val selectedParkingLot by adminQRViewModel.selectedParkingLot.collectAsStateWithLifecycle()
-    val isLoading by adminQRViewModel.isLoading.collectAsStateWithLifecycle()
+    val isProcessing by adminQRViewModel.isLoading.collectAsStateWithLifecycle()
     val errorMessage by adminQRViewModel.errorMessage.collectAsStateWithLifecycle()
     val lastScannedData by adminQRViewModel.lastScannedData.collectAsStateWithLifecycle()
+    
+    // Manual vehicle number entry
+    var manualVehicleNumber by remember { mutableStateOf("") }
     var expandedLotDropdown by remember { mutableStateOf(false) }
 
+    // Load parking lots from both ViewModels
     LaunchedEffect(Unit) {
+        parkingLotViewModel.loadAllParkingLots()
         adminQRViewModel.loadParkingLots()
+    }
+
+    // Update manual vehicle number when scanned
+    LaunchedEffect(lastScannedData) {
+        lastScannedData?.let { data ->
+            manualVehicleNumber = data.vehicleNumber
+        }
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -115,9 +130,45 @@ fun QRScannerScreen(
 
             // Show loading or error states
             when {
-                isLoading -> {
+                !hasCameraPermission -> {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Camera permission required for QR scanning",
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Button(
+                                onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }
+                            ) {
+                                Text("Grant Permission")
+                            }
+                        }
+                    }
+                }
+                parkingLotsLoading -> {
                     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator()
+                    }
+                }
+                parkingLotsError != null -> {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                    ) {
+                        Text(
+                            text = parkingLotsError ?: "Unknown error",
+                            modifier = Modifier.padding(16.dp),
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
                     }
                 }
                 errorMessage != null -> {
@@ -131,9 +182,6 @@ fun QRScannerScreen(
                             color = MaterialTheme.colorScheme.onErrorContainer
                         )
                     }
-                }
-                !hasCameraPermission -> {
-                    Text("Camera permission required for QR scanning")
                 }
                 else -> {
 
@@ -191,60 +239,131 @@ fun QRScannerScreen(
 
                 Spacer(Modifier.height(20.dp))
 
-                // Parking lot dropdown
-                ExposedDropdownMenuBox(
-                    expanded = expandedLotDropdown,
-                    onExpandedChange = { expandedLotDropdown = !expandedLotDropdown }
-                ) {
-                    OutlinedTextField(
-                        value = selectedParkingLot?.let { if (it.name.isNotBlank()) it.name else it.id } ?: "Select Parking Lot",
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Parking Lot") },
-                        trailingIcon = {
-                            ExposedDropdownMenuDefaults.TrailingIcon(expandedLotDropdown)
-                        },
+                // Parking lot dropdown - Fixed version with menuAnchor
+                if (parkingLots.isEmpty()) {
+                    Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-
-                    ExposedDropdownMenu(
-                        expanded = expandedLotDropdown,
-                        onDismissRequest = { expandedLotDropdown = false }
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer
+                        )
                     ) {
-                        parkingLots.forEach { lot ->
-                            DropdownMenuItem(
-                                text = {
-                                    Column {
-                                        Text(
-                                            if (lot.name.isNotBlank()) lot.name else lot.id,
-                                            style = MaterialTheme.typography.bodyMedium
-                                        )
-                                        Text(
-                                            "${lot.availableSpots}/${lot.totalSpots} spots",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                },
-                                onClick = {
-                                    adminQRViewModel.selectParkingLot(lot)
-                                    expandedLotDropdown = false
-                                }
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                "No parking lots available",
+                                style = MaterialTheme.typography.bodyMedium
                             )
+                            Text(
+                                "Please add parking lots in the management section",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                } else {
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = selectedParkingLot?.let { if (it.name.isNotBlank()) it.name else it.id } ?: "Select Parking Lot",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Parking Lot (${parkingLots.size} available)") },
+                            trailingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.KeyboardArrowDown,
+                                    contentDescription = "Select parking lot",
+                                    modifier = Modifier.clickable { expandedLotDropdown = true }
+                                )
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { expandedLotDropdown = true },
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        DropdownMenu(
+                            expanded = expandedLotDropdown,
+                            onDismissRequest = { expandedLotDropdown = false },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            parkingLots.forEach { lot ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text(
+                                                text = if (lot.name.isNotBlank()) lot.name else "Lot ${lot.id.take(8)}",
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+                                            Text(
+                                                text = "${lot.availableSpots}/${lot.totalSpots} spots available",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = if (lot.availableSpots > 0) 
+                                                    MaterialTheme.colorScheme.primary 
+                                                else 
+                                                    MaterialTheme.colorScheme.error
+                                            )
+                                        }
+                                    },
+                                    onClick = {
+                                        adminQRViewModel.selectParkingLot(lot)
+                                        expandedLotDropdown = false
+                                        Log.d("QRScanner", "Selected: ${lot.name}")
+                                    }
+                                )
+                            }
                         }
                     }
                 }
 
                 Spacer(Modifier.height(8.dp))
 
+                // Show selected parking lot info
+                if (selectedParkingLot != null) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Selected: ${selectedParkingLot?.name}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "${selectedParkingLot?.availableSpots}/${selectedParkingLot?.totalSpots} spots available",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+
+                // Editable vehicle number field
                 OutlinedTextField(
-                    value = lastScannedData?.vehicleNumber ?: "",
-                    onValueChange = { },
-                    label = { Text("Vehicle Number") },
-                    readOnly = true,
+                    value = manualVehicleNumber,
+                    onValueChange = { 
+                        manualVehicleNumber = it.uppercase()
+                        // Also update the scanned data if exists
+                        lastScannedData?.let { currentData ->
+                            adminQRViewModel.setManualVehicleNumber(it.uppercase())
+                        }
+                    },
+                    label = { Text("Vehicle Number (or scan QR)") },
+                    placeholder = { Text("Enter vehicle number") },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
                 )
 
                 Spacer(Modifier.height(20.dp))
@@ -252,28 +371,45 @@ fun QRScannerScreen(
                 // Entry: Process vehicle entry with selected parking lot
                 Button(
                     onClick = {
-                        val scannedData = lastScannedData
+                        val vehicleNumber = manualVehicleNumber.ifEmpty { lastScannedData?.vehicleNumber }
                         val lotId = selectedParkingLot?.id
-                        if (scannedData != null && lotId != null) {
+                        Log.d("QRScanner", "Process Entry clicked - Vehicle: $vehicleNumber, Lot ID: $lotId")
+                        if (!vehicleNumber.isNullOrEmpty() && lotId != null) {
+                            val scannedData = lastScannedData?.copy(vehicleNumber = vehicleNumber)
+                                ?: AdminQRScannerViewModel.QRScannedData(
+                                    vehicleNumber = vehicleNumber,
+                                    vehicleId = "",
+                                    userId = "",
+                                    rawCode = vehicleNumber
+                                )
                             adminQRViewModel.processEntry(scannedData, lotId) { result ->
                                 transactionResult = result
                                 showResult = true
                             }
+                        } else {
+                            Log.e("QRScanner", "Cannot process - Vehicle: $vehicleNumber, Lot: $lotId")
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = lastScannedData != null && selectedParkingLot != null && !isLoading,
+                    enabled = (manualVehicleNumber.isNotEmpty() || lastScannedData != null) && selectedParkingLot != null && !isProcessing,
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text(if (isLoading) "Processing…" else "Process Entry")
+                    Text(if (isProcessing) "Processing…" else "Process Entry")
                 }
 
                 Spacer(Modifier.height(10.dp))
 
                 Button(
                     onClick = {
-                        val scannedData = lastScannedData
-                        if (scannedData != null) {
+                        val vehicleNumber = manualVehicleNumber.ifEmpty { lastScannedData?.vehicleNumber }
+                        if (!vehicleNumber.isNullOrEmpty()) {
+                            val scannedData = lastScannedData?.copy(vehicleNumber = vehicleNumber)
+                                ?: AdminQRScannerViewModel.QRScannedData(
+                                    vehicleNumber = vehicleNumber,
+                                    vehicleId = "",
+                                    userId = "",
+                                    rawCode = vehicleNumber
+                                )
                             adminQRViewModel.processExit(scannedData) { result ->
                                 transactionResult = result
                                 showResult = true
@@ -281,10 +417,10 @@ fun QRScannerScreen(
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = lastScannedData != null && !isLoading,
+                    enabled = (manualVehicleNumber.isNotEmpty() || lastScannedData != null) && !isProcessing,
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text(if (isLoading) "Processing…" else "Process Exit")
+                    Text(if (isProcessing) "Processing…" else "Process Exit")
                 }
 
                 Spacer(Modifier.height(12.dp))
@@ -292,6 +428,7 @@ fun QRScannerScreen(
                 OutlinedButton(
                     onClick = {
                         isScanning = true
+                        manualVehicleNumber = ""
                         adminQRViewModel.resetScannedData()
                         adminQRViewModel.clearError()
                     },

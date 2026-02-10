@@ -306,6 +306,7 @@ fun QRScannerScreen(
 
 /* ---------------- CAMERA ---------------- */
 
+@androidx.annotation.OptIn(ExperimentalGetImage::class)
 @Composable
 fun CameraPreviewWithQRScanner(
     onQRCodeScanned: (String) -> Unit
@@ -352,6 +353,7 @@ fun CameraPreviewWithQRScanner(
     )
 }
 
+@ExperimentalGetImage
 private fun processImageProxy(
     scanner: com.google.mlkit.vision.barcode.BarcodeScanner,
     imageProxy: ImageProxy,

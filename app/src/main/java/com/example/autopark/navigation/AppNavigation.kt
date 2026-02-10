@@ -112,11 +112,9 @@ fun AppNavigation() {
             DriverVehiclesScreen(navController)
         }
         composable(
-            route = "driver_qr_display/{vehicleId?}",
+            route = "driver_qr_display/{vehicleId}",
             arguments = listOf(navArgument("vehicleId") {
                 type = NavType.StringType
-                defaultValue = ""
-                nullable = true
             })
         ) { backStackEntry ->
             val vehicleId = backStackEntry.arguments?.getString("vehicleId") ?: ""

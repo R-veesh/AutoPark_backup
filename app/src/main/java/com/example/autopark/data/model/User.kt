@@ -45,7 +45,7 @@ data class User(
     @set:PropertyName("licenseNumber")
     var licenseNumber: String = "",
 
-@get:PropertyName("licenseExpiry")
+    @get:PropertyName("licenseExpiry")
     @set:PropertyName("licenseExpiry")
     var licenseExpiry: Long = 0,
 
@@ -58,20 +58,18 @@ data class User(
     @set:PropertyName("parkingLicenseValid")
     var parkingLicenseValid: Boolean = true,
 
+    // Store timestamps as Long to avoid deserialization issues
     @get:PropertyName("createdAt")
     @set:PropertyName("createdAt")
-    @ServerTimestamp
-    var createdAt: Date? = null,
+    var createdAt: Long? = null,
 
     @get:PropertyName("updatedAt")
     @set:PropertyName("updatedAt")
-    @ServerTimestamp
-    var updatedAt: Date? = null,
+    var updatedAt: Long? = null,
 
     @get:PropertyName("lastLoginAt")
     @set:PropertyName("lastLoginAt")
-    @ServerTimestamp
-    var lastLoginAt: Date? = null,
+    var lastLoginAt: Long? = null,
 
     @get:PropertyName("isVIP")
     @set:PropertyName("isVIP")
@@ -105,4 +103,9 @@ data class User(
         "payment_reminders" to true,
         "promotional_notifications" to false
     )
-)
+) {
+    // Helper methods to get dates
+    fun getCreatedAtDate(): Date? = createdAt?.let { Date(it) }
+    fun getUpdatedAtDate(): Date? = updatedAt?.let { Date(it) }
+    fun getLastLoginAtDate(): Date? = lastLoginAt?.let { Date(it) }
+}

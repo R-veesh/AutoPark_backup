@@ -1,7 +1,6 @@
 package com.example.autopark.data.model
 
 import com.google.firebase.firestore.PropertyName
-import com.google.firebase.firestore.ServerTimestamp
 import java.util.Date
 
 data class OverdueCharge(
@@ -73,13 +72,18 @@ data class OverdueCharge(
     @set:PropertyName("amountPaid")
     var amountPaid: Double = 0.0,
 
+    // Store timestamps as Long to avoid deserialization issues
     @get:PropertyName("createdAt")
     @set:PropertyName("createdAt")
-    @ServerTimestamp
-    var createdAt: Date? = null,
+    var createdAt: Long? = null,
 
     @get:PropertyName("updatedAt")
     @set:PropertyName("updatedAt")
-    @ServerTimestamp
-    var updatedAt: Date? = null
-)
+    var updatedAt: Long? = null
+) {
+    // Helper methods to get dates
+    fun getCreatedAtDate(): Date? = createdAt?.let { Date(it) }
+    fun getUpdatedAtDate(): Date? = updatedAt?.let { Date(it) }
+    fun getDueDate(): Date = Date(dueDate)
+    fun getPaymentDate(): Date? = paymentDate?.let { Date(it) }
+}

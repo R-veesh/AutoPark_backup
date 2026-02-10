@@ -409,4 +409,23 @@ class ParkingTransactionViewModel @Inject constructor(
     fun refreshTransactions() {
         loadOwnerTransactions()
     }
+    
+    fun loadAllTransactions() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val result = transactionRepository.getAllTransactions()
+                result.onSuccess { trans ->
+                    _transactions.value = trans
+                    _errorMessage.value = null
+                }.onFailure { error ->
+                    _errorMessage.value = error.message ?: "Failed to load all transactions"
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "Unknown error loading transactions"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
 }

@@ -69,4 +69,31 @@ object QRCodeValidator {
         
         return Pair(validateQRCode(qrCodeData), qrCodeData)
     }
+    
+    /**
+     * Simple validation for basic QR format
+     * @param qrString The QR code string to validate
+     * @return True if basic format is valid, false otherwise
+     */
+    fun validateQRCode(qrString: String): Boolean {
+        return try {
+            // Expected format: "vehicleNumber|vehicleId|userId" or "vehicleNumber|vehicleId"
+            val parts = qrString.split("|")
+            when {
+                parts.size >= 2 -> {
+                    val vehicleNumber = parts[0].trim()
+                    val vehicleId = parts[1].trim()
+                    vehicleNumber.isNotBlank() && vehicleId.isNotBlank()
+                }
+                parts.size == 1 -> {
+                    // Legacy format - just vehicle number
+                    parts[0].trim().isNotBlank()
+                }
+                else -> false
+            }
+        } catch (e: Exception) {
+            Log.e("QRCodeValidator", "Error validating QR code format", e)
+            false
+        }
+    }
 }

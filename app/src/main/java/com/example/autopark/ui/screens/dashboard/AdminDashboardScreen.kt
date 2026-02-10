@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,14 +29,37 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.example.autopark.ui.viewmodel.AuthViewModel
+import com.example.autopark.ui.viewmodel.ParkingLotViewModel
+import com.example.autopark.ui.viewmodel.ParkingTransactionViewModel
+import com.example.autopark.ui.viewmodel.VehicleViewModel
+import com.example.autopark.ui.viewmodel.UserManagementViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminDashboardScreen(
     navController: NavController,
-    authViewModel: AuthViewModel = hiltViewModel()
+    authViewModel: AuthViewModel = hiltViewModel(),
+    parkingLotViewModel: ParkingLotViewModel = hiltViewModel(),
+    transactionViewModel: ParkingTransactionViewModel = hiltViewModel(),
+    vehicleViewModel: VehicleViewModel = hiltViewModel(),
+    userViewModel: UserManagementViewModel = hiltViewModel()
 ) {
     val currentUser by authViewModel.currentUser.collectAsStateWithLifecycle()
+    
+    // Dynamic data for dashboard counts
+    val parkingLots by parkingLotViewModel.parkingLots.collectAsStateWithLifecycle()
+    val transactions by transactionViewModel.transactions.collectAsStateWithLifecycle()
+    val vehicles by vehicleViewModel.vehicles.collectAsStateWithLifecycle()
+    val users by userViewModel.users.collectAsStateWithLifecycle()
+    val isLoading by parkingLotViewModel.isLoading.collectAsStateWithLifecycle()
+
+    // Load data on composition
+    LaunchedEffect(Unit) {
+        parkingLotViewModel.loadAllParkingLots()
+        transactionViewModel.loadAllTransactions()
+        vehicleViewModel.loadAllVehicles()
+        userViewModel.loadAllUsers()
+    }
 
     val dashboardItems = listOf(
         DashboardItem(
@@ -127,6 +151,58 @@ fun AdminDashboardScreen(
                 .padding(16.dp)
         ) {
             
+            // Dynamic stats cards
+            if (isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    StatCard(
+                        title = "Parking Lots",
+                        count = parkingLots.size,
+                        modifier = Modifier.weight(1f)
+                    )
+                    StatCard(
+                        title = "Active Vehicles",
+                        count = vehicles.count { v -> 
+                            transactions.any { t -> t.vehicleId == v.id && t.status == "ACTIVE" }
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    StatCard(
+                        title = "Total Users",
+                        count = users.size,
+                        modifier = Modifier.weight(1f)
+                    )
+                    StatCard(
+                        title = "Today's Transactions",
+                        count = transactions.count { 
+                            val today = System.currentTimeMillis()
+                            val startOfDay = today - (today % (24 * 60 * 60 * 1000))
+                            it.entryTime >= startOfDay
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
             Text(
                 text = "Select an option to manage the parking facility",
                 style = MaterialTheme.typography.bodyMedium,
@@ -200,6 +276,38 @@ fun DashboardCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+fun StatCard(
+    title: String,
+    count: Int,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = count.toString(),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }

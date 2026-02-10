@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.autopark.data.model.Vehicle
 import com.example.autopark.data.repository.AuthRepository
-import com.example.autopark.data.repository.VehicleRepository
+import com.example.autopark.util.TimestampUtils
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -13,12 +13,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
 @HiltViewModel
 class VehicleViewModel @Inject constructor(
-    private val vehicleRepository: VehicleRepository,
+    private val vehicleRepository: com.example.autopark.data.repository.VehicleRepository,
     private val authRepository: AuthRepository,
     private val db: FirebaseFirestore
 ) : ViewModel() {
@@ -36,6 +35,28 @@ class VehicleViewModel @Inject constructor(
 
     init {
         loadOwnerVehicles()
+    }
+
+    private fun parseVehicleFromDocument(docId: String, data: Map<String, Any?>?): Vehicle? {
+        if (data == null) return null
+        return try {
+            Vehicle(
+                id = docId,
+                ownerId = data["ownerId"] as? String ?: "",
+                vehicleNumber = data["vehicleNumber"] as? String ?: "",
+                vehicleType = data["vehicleType"] as? String ?: "",
+                color = data["color"] as? String ?: "",
+                brand = data["brand"] as? String ?: "",
+                model = data["model"] as? String ?: "",
+                parkingLicenseValid = data["parkingLicenseValid"] as? Boolean ?: true,
+                registrationExpiry = (data["registrationExpiry"] as? Number)?.toLong() ?: 0,
+                createdAt = TimestampUtils.toMillis(data["createdAt"]),
+                updatedAt = TimestampUtils.toMillis(data["updatedAt"])
+            )
+        } catch (e: Exception) {
+            Log.e("VehicleViewModel", "Error parsing vehicle: ${e.message}")
+            null
+        }
     }
 
     fun loadOwnerVehicles() {
@@ -59,14 +80,7 @@ class VehicleViewModel @Inject constructor(
 
                         if (snapshot != null) {
                             val vehicles = snapshot.documents.mapNotNull { doc ->
-                                try {
-                                    doc.toObject(Vehicle::class.java)?.apply { 
-                                        id = doc.id 
-                                    }
-                                } catch (e: Exception) {
-                                    Log.e("VehicleViewModel", "Error parsing vehicle", e)
-                                    null
-                                }
+                                parseVehicleFromDocument(doc.id, doc.data)
                             }
                             _vehicles.value = vehicles
                             _errorMessage.value = null
@@ -94,7 +108,6 @@ class VehicleViewModel @Inject constructor(
                 val vehicleWithOwner = vehicle.copy(ownerId = userId)
                 val result = vehicleRepository.addVehicle(vehicleWithOwner)
                 result.onSuccess {
-                    loadOwnerVehicles()
                     _errorMessage.value = null
                 }.onFailure { error ->
                     _errorMessage.value = error.message ?: "Failed to add vehicle"
@@ -111,7 +124,6 @@ class VehicleViewModel @Inject constructor(
             _isLoading.value = true
             val result = vehicleRepository.updateVehicle(vehicle)
             result.onSuccess {
-                loadOwnerVehicles()
                 _errorMessage.value = null
             }.onFailure { error ->
                 _errorMessage.value = error.message ?: "Failed to update vehicle"
@@ -125,7 +137,6 @@ class VehicleViewModel @Inject constructor(
             _isLoading.value = true
             val result = vehicleRepository.deleteVehicle(vehicleId)
             result.onSuccess {
-                loadOwnerVehicles()
                 _errorMessage.value = null
             }.onFailure { error ->
                 _errorMessage.value = error.message ?: "Failed to delete vehicle"
@@ -136,5 +147,39 @@ class VehicleViewModel @Inject constructor(
 
     fun clearError() {
         _errorMessage.value = null
+    }
+    
+    fun loadAllVehicles() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                // Remove previous listener if exists
+                listenerRegistration?.remove()
+                
+                // Set up real-time listener for all vehicles (admin only)
+                listenerRegistration = db.collection("vehicles")
+                    .addSnapshotListener { snapshot, error ->
+                        if (error != null) {
+                            Log.e("VehicleViewModel", "Listen failed", error)
+                            _errorMessage.value = error.message ?: "Failed to load vehicles"
+                            _isLoading.value = false
+                            return@addSnapshotListener
+                        }
+
+                        if (snapshot != null) {
+                            val vehicles = snapshot.documents.mapNotNull { doc ->
+                                parseVehicleFromDocument(doc.id, doc.data)
+                            }
+                            _vehicles.value = vehicles
+                            _errorMessage.value = null
+                            Log.d("VehicleViewModel", "Loaded ${vehicles.size} total vehicles")
+                        }
+                        _isLoading.value = false
+                    }
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "Failed to load vehicles"
+                _isLoading.value = false
+            }
+        }
     }
 }

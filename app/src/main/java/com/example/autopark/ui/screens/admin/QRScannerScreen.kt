@@ -27,11 +27,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.example.autopark.data.model.ParkingTransaction
 import com.example.autopark.data.model.ParkingLot
 import com.example.autopark.ui.viewmodel.ParkingTransactionViewModel
 import com.example.autopark.ui.viewmodel.ParkingLotViewModel
+import com.example.autopark.ui.viewmodel.AdminQRScannerViewModel
 import com.example.autopark.util.CurrencyFormatter
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.common.InputImage
@@ -41,7 +43,7 @@ import java.util.concurrent.Executors
 @Composable
 fun QRScannerScreen(
     navController: NavController,
-    viewModel: ParkingTransactionViewModel = hiltViewModel(),
+    adminQRViewModel: AdminQRScannerViewModel = hiltViewModel(),
     parkingLotViewModel: ParkingLotViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -56,21 +58,19 @@ fun QRScannerScreen(
         )
     }
 
-    // Parsed from QR: driver app encodes "vehicleNumber|vehicleId"
-    var vehicleNumber by remember { mutableStateOf("") }
-    var scannedVehicleId by remember { mutableStateOf<String?>(null) }
-    var scannedCode by remember { mutableStateOf<String?>(null) }
     var isScanning by remember { mutableStateOf(true) }
-    var isProcessing by remember { mutableStateOf(false) }
     var showResult by remember { mutableStateOf(false) }
     var transactionResult by remember { mutableStateOf<Result<ParkingTransaction>?>(null) }
 
-    val parkingLots: List<ParkingLot> by parkingLotViewModel.parkingLots.collectAsState(initial = emptyList())
-    var selectedParkingLot by remember { mutableStateOf<ParkingLot?>(null) }
+    val parkingLots by adminQRViewModel.parkingLots.collectAsStateWithLifecycle()
+    val selectedParkingLot by adminQRViewModel.selectedParkingLot.collectAsStateWithLifecycle()
+    val isLoading by adminQRViewModel.isLoading.collectAsStateWithLifecycle()
+    val errorMessage by adminQRViewModel.errorMessage.collectAsStateWithLifecycle()
+    val lastScannedData by adminQRViewModel.lastScannedData.collectAsStateWithLifecycle()
     var expandedLotDropdown by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        parkingLotViewModel.loadAllParkingLots()
+        adminQRViewModel.loadParkingLots()
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -113,7 +113,29 @@ fun QRScannerScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
-            if (hasCameraPermission) {
+            // Show loading or error states
+            when {
+                isLoading -> {
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                }
+                errorMessage != null -> {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                    ) {
+                        Text(
+                            text = errorMessage ?: "Unknown error",
+                            modifier = Modifier.padding(16.dp),
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
+                !hasCameraPermission -> {
+                    Text("Camera permission required for QR scanning")
+                }
+                else -> {
 
                 Card(
                     modifier = Modifier
@@ -124,12 +146,8 @@ fun QRScannerScreen(
                 ) {
                     if (isScanning) {
                         CameraPreviewWithQRScanner { code ->
-                            if (scannedCode == null) {
-                                scannedCode = code
-                                // Driver QR format: "vehicleNumber|vehicleId"
-                                val parts = code.split("|").map { it.trim() }
-                                vehicleNumber = parts.getOrNull(0)?.takeIf { it.isNotBlank() } ?: code
-                                scannedVehicleId = parts.getOrNull(1)?.takeIf { it.isNotBlank() }
+                            val scannedData = adminQRViewModel.processQRCode(code)
+                            if (scannedData != null) {
                                 isScanning = false
                             }
                         }
@@ -153,11 +171,20 @@ fun QRScannerScreen(
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            Text(
-                                vehicleNumber,
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold
-                            )
+                            lastScannedData?.let { data ->
+                                Text(
+                                    data.vehicleNumber,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                if (data.vehicleId.isNotEmpty()) {
+                                    Text(
+                                        "ID: ${data.vehicleId}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -188,12 +215,20 @@ fun QRScannerScreen(
                         parkingLots.forEach { lot ->
                             DropdownMenuItem(
                                 text = {
-                                    Text(
-                                        if (lot.name.isNotBlank()) lot.name else lot.id
-                                    )
+                                    Column {
+                                        Text(
+                                            if (lot.name.isNotBlank()) lot.name else lot.id,
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                        Text(
+                                            "${lot.availableSpots}/${lot.totalSpots} spots",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 },
                                 onClick = {
-                                    selectedParkingLot = lot
+                                    adminQRViewModel.selectParkingLot(lot)
                                     expandedLotDropdown = false
                                 }
                             )
@@ -204,72 +239,52 @@ fun QRScannerScreen(
                 Spacer(Modifier.height(8.dp))
 
                 OutlinedTextField(
-                    value = vehicleNumber,
-                    onValueChange = { vehicleNumber = it.uppercase() },
+                    value = lastScannedData?.vehicleNumber ?: "",
+                    onValueChange = { },
                     label = { Text("Vehicle Number") },
+                    readOnly = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
                 )
 
                 Spacer(Modifier.height(20.dp))
 
-                // Entry: use vehicleId when available (from QR) for reliable lookup
+                // Entry: Process vehicle entry with selected parking lot
                 Button(
                     onClick = {
-                        isProcessing = true
-                        val lotId = selectedParkingLot?.id ?: ""
-                        if (scannedVehicleId != null) {
-                            viewModel.processVehicleEntry(
-                                vehicleId = scannedVehicleId!!,
-                                vehicleNumber = vehicleNumber,
-                                parkingLotId = lotId
-                            ) { result ->
+                        val scannedData = lastScannedData
+                        val lotId = selectedParkingLot?.id
+                        if (scannedData != null && lotId != null) {
+                            adminQRViewModel.processEntry(scannedData, lotId) { result ->
                                 transactionResult = result
                                 showResult = true
-                                isProcessing = false
-                            }
-                        } else {
-                            viewModel.processVehicleEntryByNumber(
-                                vehicleNumber,
-                                lotId
-                            ) { result ->
-                                transactionResult = result
-                                showResult = true
-                                isProcessing = false
                             }
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = vehicleNumber.isNotBlank() && selectedParkingLot != null && !isProcessing,
+                    enabled = lastScannedData != null && selectedParkingLot != null && !isLoading,
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text(if (isProcessing) "Processing…" else "Process Entry")
+                    Text(if (isLoading) "Processing…" else "Process Entry")
                 }
 
                 Spacer(Modifier.height(10.dp))
 
                 Button(
                     onClick = {
-                        isProcessing = true
-                        if (scannedVehicleId != null) {
-                            viewModel.processVehicleExit(scannedVehicleId!!) { result ->
+                        val scannedData = lastScannedData
+                        if (scannedData != null) {
+                            adminQRViewModel.processExit(scannedData) { result ->
                                 transactionResult = result
                                 showResult = true
-                                isProcessing = false
-                            }
-                        } else {
-                            viewModel.processVehicleExitByNumber(vehicleNumber) { result ->
-                                transactionResult = result
-                                showResult = true
-                                isProcessing = false
                             }
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = vehicleNumber.isNotBlank() && !isProcessing,
+                    enabled = lastScannedData != null && !isLoading,
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Process Exit")
+                    Text(if (isLoading) "Processing…" else "Process Exit")
                 }
 
                 Spacer(Modifier.height(12.dp))
@@ -277,14 +292,14 @@ fun QRScannerScreen(
                 OutlinedButton(
                     onClick = {
                         isScanning = true
-                        scannedCode = null
-                        scannedVehicleId = null
-                        vehicleNumber = ""
+                        adminQRViewModel.resetScannedData()
+                        adminQRViewModel.clearError()
                     },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text("Scan Another")
+                }
                 }
             }
         }
@@ -296,9 +311,7 @@ fun QRScannerScreen(
             onDismiss = {
                 showResult = false
                 isScanning = true
-                scannedCode = null
-                scannedVehicleId = null
-                vehicleNumber = ""
+                adminQRViewModel.resetScannedData()
             }
         )
     }

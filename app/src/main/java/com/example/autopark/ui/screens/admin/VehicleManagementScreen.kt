@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.example.autopark.data.model.Vehicle
 import com.example.autopark.ui.viewmodel.VehicleViewModel
@@ -26,39 +27,15 @@ fun VehicleManagementScreen(
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedVehicle by remember { mutableStateOf<Vehicle?>(null) }
     
-    // Sample data for demonstration
-    val vehicles = remember { mutableStateListOf(
-        Vehicle(
-            id = "1",
-            ownerId = "1",
-            vehicleNumber = "ABC123",
-            vehicleType = "Car",
-            color = "Blue",
-            brand = "Toyota",
-            model = "Camry",
-            parkingLicenseValid = true
-        ),
-        Vehicle(
-            id = "2",
-            ownerId = "1",
-            vehicleNumber = "XYZ789",
-            vehicleType = "Bike",
-            color = "Red",
-            brand = "Honda",
-            model = "CBR",
-            parkingLicenseValid = true
-        ),
-        Vehicle(
-            id = "3",
-            ownerId = "2",
-            vehicleNumber = "DEF456",
-            vehicleType = "Car",
-            color = "Black",
-            brand = "BMW",
-            model = "X5",
-            parkingLicenseValid = false
-        )
-    ) }
+    // Use real-time data from Firestore via ViewModel
+    val vehicles by viewModel.vehicles.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
+
+    // Load all vehicles for admin (real-time from Firestore)
+    LaunchedEffect(Unit) {
+        viewModel.loadAllVehicles()
+    }
 
     Scaffold(
         topBar = {
@@ -90,21 +67,69 @@ fun VehicleManagementScreen(
                 .padding(16.dp)
         ) {
             Text(
-                text = "Registered Vehicles",
+                text = "Registered Vehicles (${vehicles.size})",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(vehicles) { vehicle ->
-                    AdminVehicleCard(
-                        vehicle = vehicle,
-                        onEdit = { selectedVehicle = vehicle },
-                        onDelete = { vehicles.remove(vehicle) }
+            if (errorMessage != null) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
                     )
+                ) {
+                    Text(
+                        text = errorMessage!!,
+                        modifier = Modifier.padding(16.dp),
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+            }
+
+            if (isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            } else if (vehicles.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AccountCircle,
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "No vehicles registered",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            } else {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(vehicles) { vehicle ->
+                        AdminVehicleCard(
+                            vehicle = vehicle,
+                            onEdit = { selectedVehicle = vehicle },
+                            onDelete = { viewModel.deleteVehicle(vehicle.id) }
+                        )
+                    }
                 }
             }
         }
@@ -115,7 +140,7 @@ fun VehicleManagementScreen(
             vehicle = null,
             onDismiss = { showAddDialog = false },
             onSave = { newVehicle ->
-                vehicles.add(newVehicle.copy(id = (vehicles.size + 1).toString()))
+                viewModel.addVehicle(newVehicle)
                 showAddDialog = false
             }
         )
@@ -126,10 +151,7 @@ fun VehicleManagementScreen(
             vehicle = selectedVehicle,
             onDismiss = { selectedVehicle = null },
             onSave = { updatedVehicle ->
-                val index = vehicles.indexOfFirst { it.id == updatedVehicle.id }
-                if (index != -1) {
-                    vehicles[index] = updatedVehicle
-                }
+                viewModel.updateVehicle(updatedVehicle)
                 selectedVehicle = null
             }
         )
@@ -205,6 +227,14 @@ fun AdminVehicleCard(
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text(
+                text = "Owner ID: ${vehicle.ownerId}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             
             Spacer(modifier = Modifier.height(12.dp))
             

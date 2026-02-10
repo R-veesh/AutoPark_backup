@@ -1,14 +1,11 @@
 package com.example.autopark.ui.screens.admin
 
-import android.app.Activity
-import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -19,7 +16,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.example.autopark.ui.viewmodel.DataImportExportViewModel
-import com.example.autopark.util.JsonDataManager
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -29,72 +25,25 @@ fun DataImportExportScreen(
     viewModel: DataImportExportViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
-    val jsonDataManager = remember { JsonDataManager(context) }
     val scope = rememberCoroutineScope()
 
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
-    val progress by viewModel.progress.collectAsStateWithLifecycle()
+    val exportResult by viewModel.exportResult.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // EXPORT ALL DATA
-    val exportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            result.data?.data?.let { uri ->
-                scope.launch {
-                    try {
-                        jsonDataManager.exportSampleDataToFile(uri)
-                        snackbarHostState.showSnackbar("Export completed successfully")
-                    } catch (e: Exception) {
-                        snackbarHostState.showSnackbar("Export failed: ${e.message}")
-                    }
-                }
-            }
-        }
-    }
-
-    // IMPORT DATA
-    val importLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            result.data?.data?.let { uri ->
-                scope.launch {
-                    try {
-                        jsonDataManager.importData(uri)
-                        snackbarHostState.showSnackbar("Import completed successfully")
-                    } catch (e: Exception) {
-                        snackbarHostState.showSnackbar("Import failed: ${e.message}")
-                    }
-                }
-            }
-        }
-    }
-
-    // EXPORT SAMPLE DATA
-    val exportSampleLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            result.data?.data?.let { uri ->
-                scope.launch {
-                    try {
-                        jsonDataManager.exportSampleDataToFile(uri)
-                        snackbarHostState.showSnackbar("Sample data exported")
-                    } catch (e: Exception) {
-                        snackbarHostState.showSnackbar("Export failed: ${e.message}")
-                    }
-                }
-            }
+    // Show result messages
+    LaunchedEffect(exportResult) {
+        exportResult?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearResult()
         }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Data Import / Export") },
+                title = { Text("Data Export") },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
@@ -104,7 +53,6 @@ fun DataImportExportScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -112,80 +60,87 @@ fun DataImportExportScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-
-            // EXPORT CARD
-            Card {
+            // Info Card
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            ) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("Export Data", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Data Export",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
                     Spacer(Modifier.height(8.dp))
-                    Text("Export all parking data to JSON")
-
-                    if (isLoading) {
-                        LinearProgressIndicator(progress = { progress / 100f })
-                        Spacer(Modifier.height(8.dp))
-                    }
-
-                    Button(
-                        onClick = {
-                            val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-                                type = "application/json"
-                                putExtra(Intent.EXTRA_TITLE, "autopark_data.json")
-                            }
-                            exportLauncher.launch(intent)
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Export")
-                    }
+                    Text(
+                        "Export parking system data for backup or analysis purposes. " +
+                        "Reports can be generated from the Reports section with PDF export support."
+                    )
                 }
             }
 
-            // IMPORT CARD
+            // Export Options
             Card {
                 Column(Modifier.padding(16.dp)) {
-                    Text("Import Data", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Available Reports",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
                     Spacer(Modifier.height(8.dp))
-                    Text("Import parking data from JSON")
-
-                    Button(
-                        onClick = {
-                            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                                type = "application/json"
-                            }
-                            importLauncher.launch(intent)
+                    
+                    ListItem(
+                        headlineContent = { Text("Admin Reports") },
+                        supportingContent = { Text("System-wide statistics and revenue reports with PDF export") },
+                        leadingContent = {
+                            Icon(Icons.Default.AccountBox, null)
                         },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Import")
-                    }
+                        trailingContent = {
+                            TextButton(
+                                onClick = { navController.navigate("admin_reports") }
+                            ) {
+                                Text("Open")
+                            }
+                        }
+                    )
+                    
+                    HorizontalDivider()
+                    
+                    ListItem(
+                        headlineContent = { Text("Driver Reports") },
+                        supportingContent = { Text("Individual driver parking history with PDF export") },
+                        leadingContent = {
+                            Icon(Icons.Default.Person, null)
+                        },
+                        trailingContent = {
+                            Text(
+                                "Available in Driver Dashboard",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    )
                 }
             }
 
-            // SAMPLE DATA
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+            // Note Card
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                )
+            ) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("Sample Data", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Note",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
                     Spacer(Modifier.height(8.dp))
-                    Text("Generate sample data for testing")
-
-                    OutlinedButton(
-                        onClick = {
-                            val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-                                type = "application/json"
-                                putExtra(Intent.EXTRA_TITLE, "sample_data.json")
-                            }
-                            exportSampleLauncher.launch(intent)
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.ArrowDropDown, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Export Sample")
-                    }
+                    Text(
+                        "All reports are generated using real-time data from Firebase Firestore. " +
+                        "PDF export is available for both admin and driver reports.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
             }
         }

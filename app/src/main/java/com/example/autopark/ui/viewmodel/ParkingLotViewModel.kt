@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.autopark.data.model.ParkingLot
 import com.example.autopark.data.repository.ParkingLotRepository
+import com.example.autopark.util.TimestampUtils
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -33,6 +34,33 @@ class ParkingLotViewModel @Inject constructor(
 
     private var listenerRegistration: ListenerRegistration? = null
 
+    private fun parseParkingLotFromDocument(docId: String, data: Map<String, Any?>?): ParkingLot? {
+        if (data == null) return null
+        return try {
+            ParkingLot(
+                id = docId,
+                name = data["name"] as? String ?: "",
+                address = data["address"] as? String ?: "",
+                latitude = (data["latitude"] as? Number)?.toDouble() ?: 0.0,
+                longitude = (data["longitude"] as? Number)?.toDouble() ?: 0.0,
+                city = data["city"] as? String ?: "",
+                state = data["state"] as? String ?: "",
+                zipCode = data["zipCode"] as? String ?: "",
+                totalSpots = (data["totalSpots"] as? Number)?.toInt() ?: 0,
+                availableSpots = (data["availableSpots"] as? Number)?.toInt() ?: 0,
+                description = data["description"] as? String ?: "",
+                contactNumber = data["contactNumber"] as? String ?: "",
+                openingTime = data["openingTime"] as? String ?: "",
+                closingTime = data["closingTime"] as? String ?: "",
+                is24Hours = data["is24Hours"] as? Boolean ?: false,
+                createdAt = TimestampUtils.toMillis(data["createdAt"]),
+                updatedAt = TimestampUtils.toMillis(data["updatedAt"])
+            )
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     fun loadAllParkingLots() {
         viewModelScope.launch {
             _isLoading.value = true
@@ -51,13 +79,7 @@ class ParkingLotViewModel @Inject constructor(
 
                     if (snapshot != null) {
                         val lots = snapshot.documents.mapNotNull { doc ->
-                            try {
-                                doc.toObject(ParkingLot::class.java)?.apply { 
-                                    id = doc.id 
-                                }
-                            } catch (e: Exception) {
-                                null
-                            }
+                            parseParkingLotFromDocument(doc.id, doc.data)
                         }
                         _parkingLots.value = lots
                         _errorMessage.value = null
@@ -100,7 +122,6 @@ class ParkingLotViewModel @Inject constructor(
             _isLoading.value = true
             val result = parkingLotRepository.addParkingLot(lot)
             result.onSuccess {
-                loadAllParkingLots()
                 _errorMessage.value = null
             }.onFailure { error ->
                 _errorMessage.value = error.message ?: "Failed to add parking lot"
@@ -114,7 +135,6 @@ class ParkingLotViewModel @Inject constructor(
             _isLoading.value = true
             val result = parkingLotRepository.updateParkingLot(lot)
             result.onSuccess {
-                loadAllParkingLots()
                 _errorMessage.value = null
             }.onFailure { error ->
                 _errorMessage.value = error.message ?: "Failed to update parking lot"
@@ -128,7 +148,6 @@ class ParkingLotViewModel @Inject constructor(
             _isLoading.value = true
             val result = parkingLotRepository.deleteParkingLot(lotId)
             result.onSuccess {
-                loadAllParkingLots()
                 _errorMessage.value = null
             }.onFailure { error ->
                 _errorMessage.value = error.message ?: "Failed to delete parking lot"

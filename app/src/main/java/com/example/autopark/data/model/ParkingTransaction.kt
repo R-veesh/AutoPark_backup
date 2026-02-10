@@ -1,7 +1,6 @@
 package com.example.autopark.data.model
 
 import com.google.firebase.firestore.PropertyName
-import com.google.firebase.firestore.ServerTimestamp
 import java.util.Date
 
 data class ParkingTransaction(
@@ -61,16 +60,21 @@ data class ParkingTransaction(
     @set:PropertyName("notes")
     var notes: String = "",
 
+    // Store timestamps as Long to avoid deserialization issues
     @get:PropertyName("createdAt")
     @set:PropertyName("createdAt")
-    @ServerTimestamp
-    var createdAt: Date? = null,
+    var createdAt: Long? = null,
 
     @get:PropertyName("updatedAt")
     @set:PropertyName("updatedAt")
-    @ServerTimestamp
-    var updatedAt: Date? = null
-)
+    var updatedAt: Long? = null
+) {
+    // Helper methods to get dates
+    fun getCreatedAtDate(): Date? = createdAt?.let { Date(it) }
+    fun getUpdatedAtDate(): Date? = updatedAt?.let { Date(it) }
+    fun getEntryDate(): Date = Date(entryTime)
+    fun getExitDate(): Date? = exitTime?.let { Date(it) }
+}
 
 enum class TransactionStatus {
     ACTIVE, COMPLETED, PENDING_PAYMENT

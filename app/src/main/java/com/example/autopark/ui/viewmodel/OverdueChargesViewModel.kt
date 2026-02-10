@@ -1,10 +1,14 @@
 package com.example.autopark.ui.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.autopark.data.model.OverdueCharge
 import com.example.autopark.data.repository.AuthRepository
 import com.example.autopark.data.repository.OverdueChargeRepository
+import com.example.autopark.util.TimestampUtils
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,7 +20,8 @@ import javax.inject.Inject
 class OverdueChargesViewModel @Inject constructor(
     private val overdueChargeRepository: OverdueChargeRepository,
     private val authRepository: AuthRepository,
-    private val invoiceGenerationService: com.example.autopark.data.repository.InvoiceGenerationService
+    private val invoiceGenerationService: com.example.autopark.data.repository.InvoiceGenerationService,
+    private val db: FirebaseFirestore
 ) : ViewModel() {
 
     private val _overdueCharges = MutableStateFlow<List<OverdueCharge>>(emptyList())
@@ -30,6 +35,38 @@ class OverdueChargesViewModel @Inject constructor(
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
+    private var listenerRegistration: ListenerRegistration? = null
+
+    private fun parseOverdueChargeFromDocument(docId: String, data: Map<String, Any?>?): OverdueCharge? {
+        if (data == null) return null
+        return try {
+            OverdueCharge(
+                id = docId,
+                ownerId = data["ownerId"] as? String ?: "",
+                ownerName = data["ownerName"] as? String ?: "",
+                invoiceId = data["invoiceId"] as? String ?: "",
+                invoiceNumber = data["invoiceNumber"] as? String ?: "",
+                originalAmount = (data["originalAmount"] as? Number)?.toDouble() ?: 0.0,
+                lateFeePercentage = (data["lateFeePercentage"] as? Number)?.toDouble() ?: 0.0,
+                lateFeeAmount = (data["lateFeeAmount"] as? Number)?.toDouble() ?: 0.0,
+                totalAmount = (data["totalAmount"] as? Number)?.toDouble() ?: 0.0,
+                totalDueAmount = (data["totalDueAmount"] as? Number)?.toDouble() ?: 0.0,
+                overdueDays = (data["overdueDays"] as? Number)?.toInt() ?: 0,
+                daysOverdue = (data["daysOverdue"] as? Number)?.toInt() ?: 0,
+                dueDate = (data["dueDate"] as? Number)?.toLong() ?: 0,
+                status = data["status"] as? String ?: "PENDING",
+                paymentStatus = data["paymentStatus"] as? String ?: "PENDING",
+                paymentDate = (data["paymentDate"] as? Number)?.toLong(),
+                amountPaid = (data["amountPaid"] as? Number)?.toDouble() ?: 0.0,
+                createdAt = TimestampUtils.toMillis(data["createdAt"]),
+                updatedAt = TimestampUtils.toMillis(data["updatedAt"])
+            )
+        } catch (e: Exception) {
+            Log.e("OverdueChargesVM", "Error parsing charge: ${e.message}")
+            null
+        }
+    }
 
     fun loadOverdueCharges() {
         viewModelScope.launch {
@@ -45,6 +82,67 @@ class OverdueChargesViewModel @Inject constructor(
                     _errorMessage.value = error.message ?: "Failed to load overdue charges"
                 }
             }
+            _isLoading.value = false
+        }
+    }
+
+    /**
+     * Load all overdue charges for admin (real-time from Firestore)
+     */
+    fun loadAllOverdueCharges() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            
+            // Remove previous listener
+            listenerRegistration?.remove()
+            
+            // Set up real-time listener for all overdue charges
+            listenerRegistration = db.collection("overdue_charges")
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) {
+                        _errorMessage.value = error.message ?: "Failed to load overdue charges"
+                        _isLoading.value = false
+                        return@addSnapshotListener
+                    }
+
+                    if (snapshot != null) {
+                        val chargesList = snapshot.documents.mapNotNull { doc ->
+                            parseOverdueChargeFromDocument(doc.id, doc.data)
+                        }
+                        _overdueCharges.value = chargesList
+                        _totalOverdue.value = chargesList
+                            .filter { it.status == "PENDING" }
+                            .sumOf { it.totalAmount }
+                        _errorMessage.value = null
+                    }
+                    _isLoading.value = false
+                }
+        }
+    }
+
+    /**
+     * Mark an overdue charge as paid
+     */
+    fun markAsPaid(chargeId: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            
+            val charge = _overdueCharges.value.find { it.id == chargeId }
+            if (charge != null) {
+                val updatedCharge = charge.copy(
+                    status = "PAID",
+                    paymentStatus = "COMPLETED",
+                    paymentDate = System.currentTimeMillis()
+                )
+                
+                val result = overdueChargeRepository.updateOverdueCharge(updatedCharge)
+                result.onSuccess {
+                    _errorMessage.value = null
+                }.onFailure { error ->
+                    _errorMessage.value = error.message ?: "Failed to mark as paid"
+                }
+            }
+            
             _isLoading.value = false
         }
     }
@@ -124,5 +222,10 @@ class OverdueChargesViewModel @Inject constructor(
      */
     fun getOverdueChargesCount(): Int {
         return _overdueCharges.value.count { it.paymentStatus == "PENDING" }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        listenerRegistration?.remove()
     }
 }

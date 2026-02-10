@@ -1,6 +1,7 @@
 package com.example.autopark.data.repository
 
 import com.example.autopark.data.model.OverdueCharge
+import com.example.autopark.util.TimestampUtils
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
@@ -68,9 +69,29 @@ class OverdueChargeRepository @Inject constructor(
     suspend fun getOverdueCharge(chargeId: String): Result<OverdueCharge> {
         return try {
             val doc = db.collection("overdue_charges").document(chargeId).get().await()
-            val charge = doc.toObject(OverdueCharge::class.java)
-            if (charge != null) {
-                charge.id = doc.id
+            val data = doc.data
+            if (data != null) {
+                val charge = OverdueCharge(
+                    id = doc.id,
+                    ownerId = data["ownerId"] as? String ?: "",
+                    ownerName = data["ownerName"] as? String ?: "",
+                    invoiceId = data["invoiceId"] as? String ?: "",
+                    invoiceNumber = data["invoiceNumber"] as? String ?: "",
+                    originalAmount = (data["originalAmount"] as? Number)?.toDouble() ?: 0.0,
+                    lateFeePercentage = (data["lateFeePercentage"] as? Number)?.toDouble() ?: 0.0,
+                    lateFeeAmount = (data["lateFeeAmount"] as? Number)?.toDouble() ?: 0.0,
+                    totalAmount = (data["totalAmount"] as? Number)?.toDouble() ?: 0.0,
+                    totalDueAmount = (data["totalDueAmount"] as? Number)?.toDouble() ?: 0.0,
+                    overdueDays = (data["overdueDays"] as? Number)?.toInt() ?: 0,
+                    daysOverdue = (data["daysOverdue"] as? Number)?.toInt() ?: 0,
+                    dueDate = (data["dueDate"] as? Number)?.toLong() ?: 0,
+                    status = data["status"] as? String ?: "PENDING",
+                    paymentStatus = data["paymentStatus"] as? String ?: "PENDING",
+                    paymentDate = (data["paymentDate"] as? Number)?.toLong(),
+                    amountPaid = (data["amountPaid"] as? Number)?.toDouble() ?: 0.0,
+                    createdAt = TimestampUtils.toMillis(data["createdAt"]),
+                    updatedAt = TimestampUtils.toMillis(data["updatedAt"])
+                )
                 Result.success(charge)
             } else {
                 Result.failure(Exception("Overdue charge not found"))
@@ -87,7 +108,34 @@ class OverdueChargeRepository @Inject constructor(
                 .get()
                 .await()
             val charges = docs.documents.mapNotNull { doc ->
-                doc.toObject(OverdueCharge::class.java)?.apply { id = doc.id }
+                try {
+                    val data = doc.data
+                    if (data != null) {
+                        OverdueCharge(
+                            id = doc.id,
+                            ownerId = data["ownerId"] as? String ?: "",
+                            ownerName = data["ownerName"] as? String ?: "",
+                            invoiceId = data["invoiceId"] as? String ?: "",
+                            invoiceNumber = data["invoiceNumber"] as? String ?: "",
+                            originalAmount = (data["originalAmount"] as? Number)?.toDouble() ?: 0.0,
+                            lateFeePercentage = (data["lateFeePercentage"] as? Number)?.toDouble() ?: 0.0,
+                            lateFeeAmount = (data["lateFeeAmount"] as? Number)?.toDouble() ?: 0.0,
+                            totalAmount = (data["totalAmount"] as? Number)?.toDouble() ?: 0.0,
+                            totalDueAmount = (data["totalDueAmount"] as? Number)?.toDouble() ?: 0.0,
+                            overdueDays = (data["overdueDays"] as? Number)?.toInt() ?: 0,
+                            daysOverdue = (data["daysOverdue"] as? Number)?.toInt() ?: 0,
+                            dueDate = (data["dueDate"] as? Number)?.toLong() ?: 0,
+                            status = data["status"] as? String ?: "PENDING",
+                            paymentStatus = data["paymentStatus"] as? String ?: "PENDING",
+                            paymentDate = (data["paymentDate"] as? Number)?.toLong(),
+                            amountPaid = (data["amountPaid"] as? Number)?.toDouble() ?: 0.0,
+                            createdAt = TimestampUtils.toMillis(data["createdAt"]),
+                            updatedAt = TimestampUtils.toMillis(data["updatedAt"])
+                        )
+                    } else null
+                } catch (e: Exception) {
+                    null
+                }
             }
             Result.success(charges)
         } catch (e: Exception) {
@@ -103,7 +151,34 @@ class OverdueChargeRepository @Inject constructor(
                 .get()
                 .await()
             val charges = docs.documents.mapNotNull { doc ->
-                doc.toObject(OverdueCharge::class.java)?.apply { id = doc.id }
+                try {
+                    val data = doc.data
+                    if (data != null) {
+                        OverdueCharge(
+                            id = doc.id,
+                            ownerId = data["ownerId"] as? String ?: "",
+                            ownerName = data["ownerName"] as? String ?: "",
+                            invoiceId = data["invoiceId"] as? String ?: "",
+                            invoiceNumber = data["invoiceNumber"] as? String ?: "",
+                            originalAmount = (data["originalAmount"] as? Number)?.toDouble() ?: 0.0,
+                            lateFeePercentage = (data["lateFeePercentage"] as? Number)?.toDouble() ?: 0.0,
+                            lateFeeAmount = (data["lateFeeAmount"] as? Number)?.toDouble() ?: 0.0,
+                            totalAmount = (data["totalAmount"] as? Number)?.toDouble() ?: 0.0,
+                            totalDueAmount = (data["totalDueAmount"] as? Number)?.toDouble() ?: 0.0,
+                            overdueDays = (data["overdueDays"] as? Number)?.toInt() ?: 0,
+                            daysOverdue = (data["daysOverdue"] as? Number)?.toInt() ?: 0,
+                            dueDate = (data["dueDate"] as? Number)?.toLong() ?: 0,
+                            status = data["status"] as? String ?: "PENDING",
+                            paymentStatus = data["paymentStatus"] as? String ?: "PENDING",
+                            paymentDate = (data["paymentDate"] as? Number)?.toLong(),
+                            amountPaid = (data["amountPaid"] as? Number)?.toDouble() ?: 0.0,
+                            createdAt = TimestampUtils.toMillis(data["createdAt"]),
+                            updatedAt = TimestampUtils.toMillis(data["updatedAt"])
+                        )
+                    } else null
+                } catch (e: Exception) {
+                    null
+                }
             }
             Result.success(charges)
         } catch (e: Exception) {
@@ -118,7 +193,34 @@ class OverdueChargeRepository @Inject constructor(
                 .get()
                 .await()
             val charges = docs.documents.mapNotNull { doc ->
-                doc.toObject(OverdueCharge::class.java)?.apply { id = doc.id }
+                try {
+                    val data = doc.data
+                    if (data != null) {
+                        OverdueCharge(
+                            id = doc.id,
+                            ownerId = data["ownerId"] as? String ?: "",
+                            ownerName = data["ownerName"] as? String ?: "",
+                            invoiceId = data["invoiceId"] as? String ?: "",
+                            invoiceNumber = data["invoiceNumber"] as? String ?: "",
+                            originalAmount = (data["originalAmount"] as? Number)?.toDouble() ?: 0.0,
+                            lateFeePercentage = (data["lateFeePercentage"] as? Number)?.toDouble() ?: 0.0,
+                            lateFeeAmount = (data["lateFeeAmount"] as? Number)?.toDouble() ?: 0.0,
+                            totalAmount = (data["totalAmount"] as? Number)?.toDouble() ?: 0.0,
+                            totalDueAmount = (data["totalDueAmount"] as? Number)?.toDouble() ?: 0.0,
+                            overdueDays = (data["overdueDays"] as? Number)?.toInt() ?: 0,
+                            daysOverdue = (data["daysOverdue"] as? Number)?.toInt() ?: 0,
+                            dueDate = (data["dueDate"] as? Number)?.toLong() ?: 0,
+                            status = data["status"] as? String ?: "PENDING",
+                            paymentStatus = data["paymentStatus"] as? String ?: "PENDING",
+                            paymentDate = (data["paymentDate"] as? Number)?.toLong(),
+                            amountPaid = (data["amountPaid"] as? Number)?.toDouble() ?: 0.0,
+                            createdAt = TimestampUtils.toMillis(data["createdAt"]),
+                            updatedAt = TimestampUtils.toMillis(data["updatedAt"])
+                        )
+                    } else null
+                } catch (e: Exception) {
+                    null
+                }
             }
             Result.success(charges)
         } catch (e: Exception) {
@@ -130,7 +232,34 @@ class OverdueChargeRepository @Inject constructor(
         return try {
             val docs = db.collection("overdue_charges").get().await()
             val charges = docs.documents.mapNotNull { doc ->
-                doc.toObject(OverdueCharge::class.java)?.apply { id = doc.id }
+                try {
+                    val data = doc.data
+                    if (data != null) {
+                        OverdueCharge(
+                            id = doc.id,
+                            ownerId = data["ownerId"] as? String ?: "",
+                            ownerName = data["ownerName"] as? String ?: "",
+                            invoiceId = data["invoiceId"] as? String ?: "",
+                            invoiceNumber = data["invoiceNumber"] as? String ?: "",
+                            originalAmount = (data["originalAmount"] as? Number)?.toDouble() ?: 0.0,
+                            lateFeePercentage = (data["lateFeePercentage"] as? Number)?.toDouble() ?: 0.0,
+                            lateFeeAmount = (data["lateFeeAmount"] as? Number)?.toDouble() ?: 0.0,
+                            totalAmount = (data["totalAmount"] as? Number)?.toDouble() ?: 0.0,
+                            totalDueAmount = (data["totalDueAmount"] as? Number)?.toDouble() ?: 0.0,
+                            overdueDays = (data["overdueDays"] as? Number)?.toInt() ?: 0,
+                            daysOverdue = (data["daysOverdue"] as? Number)?.toInt() ?: 0,
+                            dueDate = (data["dueDate"] as? Number)?.toLong() ?: 0,
+                            status = data["status"] as? String ?: "PENDING",
+                            paymentStatus = data["paymentStatus"] as? String ?: "PENDING",
+                            paymentDate = (data["paymentDate"] as? Number)?.toLong(),
+                            amountPaid = (data["amountPaid"] as? Number)?.toDouble() ?: 0.0,
+                            createdAt = TimestampUtils.toMillis(data["createdAt"]),
+                            updatedAt = TimestampUtils.toMillis(data["updatedAt"])
+                        )
+                    } else null
+                } catch (e: Exception) {
+                    null
+                }
             }
             Result.success(charges)
         } catch (e: Exception) {

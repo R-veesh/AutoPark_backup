@@ -27,48 +27,20 @@ fun AdminOverdueChargesScreen(
 ) {
     val overdueCharges by viewModel.overdueCharges.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
-    
-    // Sample data for demonstration
-    val charges = remember { mutableStateListOf(
-        OverdueCharge(
-            id = "1",
-            ownerId = "1",
-            ownerName = "John Doe",
-            invoiceId = "INV001",
-            invoiceNumber = "INV-001",
-            originalAmount = 150.00,
-            overdueDays = 15,
-            daysOverdue = 15,
-            lateFeeAmount = 22.50,
-            totalAmount = 172.50,
-            totalDueAmount = 172.50,
-            status = "PENDING",
-            paymentStatus = "PENDING"
-        ),
-        OverdueCharge(
-            id = "2",
-            ownerId = "2",
-            ownerName = "Jane Smith",
-            invoiceId = "INV002",
-            invoiceNumber = "INV-002",
-            originalAmount = 200.00,
-            overdueDays = 30,
-            daysOverdue = 30,
-            lateFeeAmount = 60.00,
-            totalAmount = 260.00,
-            totalDueAmount = 260.00,
-            status = "PENDING",
-            paymentStatus = "PENDING"
-        )
-    ) }
+    val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
 
     var showPaymentDialog by remember { mutableStateOf<OverdueCharge?>(null) }
     var filterStatus by remember { mutableStateOf("ALL") }
 
     val filteredCharges = if (filterStatus == "ALL") {
-        charges
+        overdueCharges
     } else {
-        charges.filter { it.status == filterStatus }
+        overdueCharges.filter { it.status == filterStatus }
+    }
+
+    // Load overdue charges on launch
+    LaunchedEffect(Unit) {
+        viewModel.loadAllOverdueCharges()
     }
 
     Scaffold(
@@ -92,6 +64,24 @@ fun AdminOverdueChargesScreen(
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
+            // Error Message
+            if (errorMessage != null) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    )
+                ) {
+                    Text(
+                        text = errorMessage!!,
+                        modifier = Modifier.padding(16.dp),
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+            }
+
             // Summary Card
             Card(
                 modifier = Modifier
@@ -111,7 +101,7 @@ fun AdminOverdueChargesScreen(
                     )
                     Text(
                         text = CurrencyFormatter.formatCurrency(
-                            charges.filter { it.status == "PENDING" }
+                            overdueCharges.filter { it.status == "PENDING" }
                                 .sumOf { it.totalAmount }
                         ),
                         style = MaterialTheme.typography.headlineLarge,
@@ -119,7 +109,7 @@ fun AdminOverdueChargesScreen(
                         color = MaterialTheme.colorScheme.onErrorContainer
                     )
                     Text(
-                        text = "${charges.count { it.status == "PENDING" }} pending charges",
+                        text = "${overdueCharges.count { it.status == "PENDING" }} pending charges",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onErrorContainer
                     )
@@ -136,29 +126,65 @@ fun AdminOverdueChargesScreen(
                 FilterChip(
                     selected = filterStatus == "ALL",
                     onClick = { filterStatus = "ALL" },
-                    label = { Text("All") }
+                    label = { Text("All (${overdueCharges.size})") }
                 )
                 FilterChip(
                     selected = filterStatus == "PENDING",
                     onClick = { filterStatus = "PENDING" },
-                    label = { Text("Pending") }
+                    label = { Text("Pending (${overdueCharges.count { it.status == "PENDING" }})") }
                 )
                 FilterChip(
                     selected = filterStatus == "PAID",
                     onClick = { filterStatus = "PAID" },
-                    label = { Text("Paid") }
+                    label = { Text("Paid (${overdueCharges.count { it.status == "PAID" }})") }
                 )
             }
 
-            // Charges List
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(filteredCharges) { charge ->
-                    OverdueChargeCard(
-                        charge = charge,
-                        onMarkAsPaid = { showPaymentDialog = charge }
-                    )
+            // Loading State
+            if (isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            } else if (filteredCharges.isEmpty()) {
+                // Empty State
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = if (filterStatus == "ALL") 
+                                "No overdue charges found" 
+                            else 
+                                "No ${filterStatus.lowercase()} charges",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            } else {
+                // Charges List
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(filteredCharges) { charge ->
+                        OverdueChargeCard(
+                            charge = charge,
+                            onMarkAsPaid = { showPaymentDialog = charge }
+                        )
+                    }
                 }
             }
         }
@@ -171,7 +197,7 @@ fun AdminOverdueChargesScreen(
             text = {
                 Column {
                     Text("Owner: ${showPaymentDialog!!.ownerName}")
-                    Text("Invoice: ${showPaymentDialog!!.invoiceId}")
+                    Text("Invoice: ${showPaymentDialog!!.invoiceNumber}")
                     Text("Total Amount: ${CurrencyFormatter.formatCurrency(showPaymentDialog!!.totalAmount)}")
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
@@ -183,12 +209,8 @@ fun AdminOverdueChargesScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val index = charges.indexOfFirst { it.id == showPaymentDialog!!.id }
-                        if (index != -1) {
-                            charges[index] = charges[index].copy(
-                                status = "PAID",
-                                paymentStatus = "PAID"
-                            )
+                        showPaymentDialog?.let { charge ->
+                            viewModel.markAsPaid(charge.id)
                         }
                         showPaymentDialog = null
                     }
@@ -237,7 +259,7 @@ fun OverdueChargeCard(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "Invoice: ${charge.invoiceId}",
+                        text = "Invoice: ${charge.invoiceNumber}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

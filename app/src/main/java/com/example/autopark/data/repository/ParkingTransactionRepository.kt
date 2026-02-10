@@ -1,6 +1,7 @@
 package com.example.autopark.data.repository
 
 import com.example.autopark.data.model.ParkingTransaction
+import com.example.autopark.util.TimestampUtils
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
@@ -63,9 +64,26 @@ class ParkingTransactionRepository @Inject constructor(
     suspend fun getTransaction(transactionId: String): Result<ParkingTransaction> {
         return try {
             val doc = db.collection("parking_transactions").document(transactionId).get().await()
-            val transaction = doc.toObject(ParkingTransaction::class.java)
-            if (transaction != null) {
-                transaction.id = doc.id
+            val data = doc.data
+            if (data != null) {
+                val transaction = ParkingTransaction(
+                    id = doc.id,
+                    parkingLotId = data["parkingLotId"] as? String ?: "",
+                    vehicleId = data["vehicleId"] as? String ?: "",
+                    ownerId = data["ownerId"] as? String ?: "",
+                    vehicleNumber = data["vehicleNumber"] as? String ?: "",
+                    entryTime = (data["entryTime"] as? Number)?.toLong() ?: 0,
+                    exitTime = (data["exitTime"] as? Number)?.toLong(),
+                    duration = (data["duration"] as? Number)?.toLong() ?: 0,
+                    rateType = data["rateType"] as? String ?: "",
+                    chargeAmount = (data["chargeAmount"] as? Number)?.toDouble() ?: 0.0,
+                    status = data["status"] as? String ?: "",
+                    paymentMethod = data["paymentMethod"] as? String ?: "",
+                    paymentStatus = data["paymentStatus"] as? String ?: "",
+                    notes = data["notes"] as? String ?: "",
+                    createdAt = TimestampUtils.toMillis(data["createdAt"]),
+                    updatedAt = TimestampUtils.toMillis(data["updatedAt"])
+                )
                 Result.success(transaction)
             } else {
                 Result.failure(Exception("Transaction not found"))
@@ -83,7 +101,31 @@ class ParkingTransactionRepository @Inject constructor(
                 .get()
                 .await()
             val transactions = docs.documents.mapNotNull { doc ->
-                doc.toObject(ParkingTransaction::class.java)?.apply { id = doc.id }
+                try {
+                    val data = doc.data
+                    if (data != null) {
+                        ParkingTransaction(
+                            id = doc.id,
+                            parkingLotId = data["parkingLotId"] as? String ?: "",
+                            vehicleId = data["vehicleId"] as? String ?: "",
+                            ownerId = data["ownerId"] as? String ?: "",
+                            vehicleNumber = data["vehicleNumber"] as? String ?: "",
+                            entryTime = (data["entryTime"] as? Number)?.toLong() ?: 0,
+                            exitTime = (data["exitTime"] as? Number)?.toLong(),
+                            duration = (data["duration"] as? Number)?.toLong() ?: 0,
+                            rateType = data["rateType"] as? String ?: "",
+                            chargeAmount = (data["chargeAmount"] as? Number)?.toDouble() ?: 0.0,
+                            status = data["status"] as? String ?: "",
+                            paymentMethod = data["paymentMethod"] as? String ?: "",
+                            paymentStatus = data["paymentStatus"] as? String ?: "",
+                            notes = data["notes"] as? String ?: "",
+                            createdAt = TimestampUtils.toMillis(data["createdAt"]),
+                            updatedAt = TimestampUtils.toMillis(data["updatedAt"])
+                        )
+                    } else null
+                } catch (e: Exception) {
+                    null
+                }
             }
             Result.success(transactions)
         } catch (e: Exception) {
@@ -99,7 +141,31 @@ class ParkingTransactionRepository @Inject constructor(
                 .get()
                 .await()
             val transactions = docs.documents.mapNotNull { doc ->
-                doc.toObject(ParkingTransaction::class.java)?.apply { id = doc.id }
+                try {
+                    val data = doc.data
+                    if (data != null) {
+                        ParkingTransaction(
+                            id = doc.id,
+                            parkingLotId = data["parkingLotId"] as? String ?: "",
+                            vehicleId = data["vehicleId"] as? String ?: "",
+                            ownerId = data["ownerId"] as? String ?: "",
+                            vehicleNumber = data["vehicleNumber"] as? String ?: "",
+                            entryTime = (data["entryTime"] as? Number)?.toLong() ?: 0,
+                            exitTime = (data["exitTime"] as? Number)?.toLong(),
+                            duration = (data["duration"] as? Number)?.toLong() ?: 0,
+                            rateType = data["rateType"] as? String ?: "",
+                            chargeAmount = (data["chargeAmount"] as? Number)?.toDouble() ?: 0.0,
+                            status = data["status"] as? String ?: "",
+                            paymentMethod = data["paymentMethod"] as? String ?: "",
+                            paymentStatus = data["paymentStatus"] as? String ?: "",
+                            notes = data["notes"] as? String ?: "",
+                            createdAt = TimestampUtils.toMillis(data["createdAt"]),
+                            updatedAt = TimestampUtils.toMillis(data["updatedAt"])
+                        )
+                    } else null
+                } catch (e: Exception) {
+                    null
+                }
             }
             Result.success(transactions)
         } catch (e: Exception) {
@@ -115,7 +181,31 @@ class ParkingTransactionRepository @Inject constructor(
                 .get()
                 .await()
             val transaction = docs.documents.mapNotNull { doc ->
-                doc.toObject(ParkingTransaction::class.java)?.apply { id = doc.id }
+                try {
+                    val data = doc.data
+                    if (data != null) {
+                        ParkingTransaction(
+                            id = doc.id,
+                            parkingLotId = data["parkingLotId"] as? String ?: "",
+                            vehicleId = data["vehicleId"] as? String ?: "",
+                            ownerId = data["ownerId"] as? String ?: "",
+                            vehicleNumber = data["vehicleNumber"] as? String ?: "",
+                            entryTime = (data["entryTime"] as? Number)?.toLong() ?: 0,
+                            exitTime = (data["exitTime"] as? Number)?.toLong(),
+                            duration = (data["duration"] as? Number)?.toLong() ?: 0,
+                            rateType = data["rateType"] as? String ?: "",
+                            chargeAmount = (data["chargeAmount"] as? Number)?.toDouble() ?: 0.0,
+                            status = data["status"] as? String ?: "",
+                            paymentMethod = data["paymentMethod"] as? String ?: "",
+                            paymentStatus = data["paymentStatus"] as? String ?: "",
+                            notes = data["notes"] as? String ?: "",
+                            createdAt = TimestampUtils.toMillis(data["createdAt"]),
+                            updatedAt = TimestampUtils.toMillis(data["updatedAt"])
+                        )
+                    } else null
+                } catch (e: Exception) {
+                    null
+                }
             }.firstOrNull()
             Result.success(transaction)
         } catch (e: Exception) {
@@ -125,7 +215,6 @@ class ParkingTransactionRepository @Inject constructor(
 
     suspend fun getMonthlyTransactions(ownerId: String, month: Int, year: Int): Result<List<ParkingTransaction>> {
         return try {
-            // Get start and end of month
             val calendar = java.util.Calendar.getInstance()
             calendar.set(year, month - 1, 1, 0, 0, 0)
             val startOfMonth = calendar.timeInMillis
@@ -140,7 +229,31 @@ class ParkingTransactionRepository @Inject constructor(
                 .await()
             
             val transactions = docs.documents.mapNotNull { doc ->
-                doc.toObject(ParkingTransaction::class.java)?.apply { id = doc.id }
+                try {
+                    val data = doc.data
+                    if (data != null) {
+                        ParkingTransaction(
+                            id = doc.id,
+                            parkingLotId = data["parkingLotId"] as? String ?: "",
+                            vehicleId = data["vehicleId"] as? String ?: "",
+                            ownerId = data["ownerId"] as? String ?: "",
+                            vehicleNumber = data["vehicleNumber"] as? String ?: "",
+                            entryTime = (data["entryTime"] as? Number)?.toLong() ?: 0,
+                            exitTime = (data["exitTime"] as? Number)?.toLong(),
+                            duration = (data["duration"] as? Number)?.toLong() ?: 0,
+                            rateType = data["rateType"] as? String ?: "",
+                            chargeAmount = (data["chargeAmount"] as? Number)?.toDouble() ?: 0.0,
+                            status = data["status"] as? String ?: "",
+                            paymentMethod = data["paymentMethod"] as? String ?: "",
+                            paymentStatus = data["paymentStatus"] as? String ?: "",
+                            notes = data["notes"] as? String ?: "",
+                            createdAt = TimestampUtils.toMillis(data["createdAt"]),
+                            updatedAt = TimestampUtils.toMillis(data["updatedAt"])
+                        )
+                    } else null
+                } catch (e: Exception) {
+                    null
+                }
             }
             Result.success(transactions)
         } catch (e: Exception) {
@@ -156,7 +269,31 @@ class ParkingTransactionRepository @Inject constructor(
                 .get()
                 .await()
             val transactions = docs.documents.mapNotNull { doc ->
-                doc.toObject(ParkingTransaction::class.java)?.apply { id = doc.id }
+                try {
+                    val data = doc.data
+                    if (data != null) {
+                        ParkingTransaction(
+                            id = doc.id,
+                            parkingLotId = data["parkingLotId"] as? String ?: "",
+                            vehicleId = data["vehicleId"] as? String ?: "",
+                            ownerId = data["ownerId"] as? String ?: "",
+                            vehicleNumber = data["vehicleNumber"] as? String ?: "",
+                            entryTime = (data["entryTime"] as? Number)?.toLong() ?: 0,
+                            exitTime = (data["exitTime"] as? Number)?.toLong(),
+                            duration = (data["duration"] as? Number)?.toLong() ?: 0,
+                            rateType = data["rateType"] as? String ?: "",
+                            chargeAmount = (data["chargeAmount"] as? Number)?.toDouble() ?: 0.0,
+                            status = data["status"] as? String ?: "",
+                            paymentMethod = data["paymentMethod"] as? String ?: "",
+                            paymentStatus = data["paymentStatus"] as? String ?: "",
+                            notes = data["notes"] as? String ?: "",
+                            createdAt = TimestampUtils.toMillis(data["createdAt"]),
+                            updatedAt = TimestampUtils.toMillis(data["updatedAt"])
+                        )
+                    } else null
+                } catch (e: Exception) {
+                    null
+                }
             }
             Result.success(transactions)
         } catch (e: Exception) {
@@ -166,7 +303,6 @@ class ParkingTransactionRepository @Inject constructor(
 
     suspend fun getMonthlyLotTransactions(lotId: String, month: Int, year: Int): Result<List<ParkingTransaction>> {
         return try {
-            // Get start and end of month
             val calendar = java.util.Calendar.getInstance()
             calendar.set(year, month - 1, 1, 0, 0, 0)
             val startOfMonth = calendar.timeInMillis
@@ -181,7 +317,31 @@ class ParkingTransactionRepository @Inject constructor(
                 .await()
             
             val transactions = docs.documents.mapNotNull { doc ->
-                doc.toObject(ParkingTransaction::class.java)?.apply { id = doc.id }
+                try {
+                    val data = doc.data
+                    if (data != null) {
+                        ParkingTransaction(
+                            id = doc.id,
+                            parkingLotId = data["parkingLotId"] as? String ?: "",
+                            vehicleId = data["vehicleId"] as? String ?: "",
+                            ownerId = data["ownerId"] as? String ?: "",
+                            vehicleNumber = data["vehicleNumber"] as? String ?: "",
+                            entryTime = (data["entryTime"] as? Number)?.toLong() ?: 0,
+                            exitTime = (data["exitTime"] as? Number)?.toLong(),
+                            duration = (data["duration"] as? Number)?.toLong() ?: 0,
+                            rateType = data["rateType"] as? String ?: "",
+                            chargeAmount = (data["chargeAmount"] as? Number)?.toDouble() ?: 0.0,
+                            status = data["status"] as? String ?: "",
+                            paymentMethod = data["paymentMethod"] as? String ?: "",
+                            paymentStatus = data["paymentStatus"] as? String ?: "",
+                            notes = data["notes"] as? String ?: "",
+                            createdAt = TimestampUtils.toMillis(data["createdAt"]),
+                            updatedAt = TimestampUtils.toMillis(data["updatedAt"])
+                        )
+                    } else null
+                } catch (e: Exception) {
+                    null
+                }
             }
             Result.success(transactions)
         } catch (e: Exception) {
@@ -193,7 +353,31 @@ class ParkingTransactionRepository @Inject constructor(
         return try {
             val docs = db.collection("parking_transactions").get().await()
             val transactions = docs.documents.mapNotNull { doc ->
-                doc.toObject(ParkingTransaction::class.java)?.apply { id = doc.id }
+                try {
+                    val data = doc.data
+                    if (data != null) {
+                        ParkingTransaction(
+                            id = doc.id,
+                            parkingLotId = data["parkingLotId"] as? String ?: "",
+                            vehicleId = data["vehicleId"] as? String ?: "",
+                            ownerId = data["ownerId"] as? String ?: "",
+                            vehicleNumber = data["vehicleNumber"] as? String ?: "",
+                            entryTime = (data["entryTime"] as? Number)?.toLong() ?: 0,
+                            exitTime = (data["exitTime"] as? Number)?.toLong(),
+                            duration = (data["duration"] as? Number)?.toLong() ?: 0,
+                            rateType = data["rateType"] as? String ?: "",
+                            chargeAmount = (data["chargeAmount"] as? Number)?.toDouble() ?: 0.0,
+                            status = data["status"] as? String ?: "",
+                            paymentMethod = data["paymentMethod"] as? String ?: "",
+                            paymentStatus = data["paymentStatus"] as? String ?: "",
+                            notes = data["notes"] as? String ?: "",
+                            createdAt = TimestampUtils.toMillis(data["createdAt"]),
+                            updatedAt = TimestampUtils.toMillis(data["updatedAt"])
+                        )
+                    } else null
+                } catch (e: Exception) {
+                    null
+                }
             }
             Result.success(transactions)
         } catch (e: Exception) {

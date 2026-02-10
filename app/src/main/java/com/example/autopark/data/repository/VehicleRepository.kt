@@ -1,6 +1,7 @@
 package com.example.autopark.data.repository
 
 import com.example.autopark.data.model.Vehicle
+import com.example.autopark.util.TimestampUtils
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -12,7 +13,6 @@ class VehicleRepository @Inject constructor(
 ) {
     suspend fun addVehicle(vehicle: Vehicle): Result<String> {
         return try {
-            // Create a map to ensure all fields are properly set
             val vehicleMap = hashMapOf(
                 "ownerId" to vehicle.ownerId,
                 "vehicleNumber" to vehicle.vehicleNumber,
@@ -64,9 +64,21 @@ class VehicleRepository @Inject constructor(
     suspend fun getVehicle(vehicleId: String): Result<Vehicle> {
         return try {
             val doc = db.collection("vehicles").document(vehicleId).get().await()
-            val vehicle = doc.toObject(Vehicle::class.java)
-            if (vehicle != null) {
-                vehicle.id = doc.id
+            val data = doc.data
+            if (data != null) {
+                val vehicle = Vehicle(
+                    id = doc.id,
+                    ownerId = data["ownerId"] as? String ?: "",
+                    vehicleNumber = data["vehicleNumber"] as? String ?: "",
+                    vehicleType = data["vehicleType"] as? String ?: "",
+                    color = data["color"] as? String ?: "",
+                    brand = data["brand"] as? String ?: "",
+                    model = data["model"] as? String ?: "",
+                    parkingLicenseValid = data["parkingLicenseValid"] as? Boolean ?: true,
+                    registrationExpiry = (data["registrationExpiry"] as? Number)?.toLong() ?: 0,
+                    createdAt = TimestampUtils.toMillis(data["createdAt"]),
+                    updatedAt = TimestampUtils.toMillis(data["updatedAt"])
+                )
                 Result.success(vehicle)
             } else {
                 Result.failure(Exception("Vehicle not found"))
@@ -83,7 +95,26 @@ class VehicleRepository @Inject constructor(
                 .get()
                 .await()
             val vehicles = docs.documents.mapNotNull { doc ->
-                doc.toObject(Vehicle::class.java)?.apply { id = doc.id }
+                try {
+                    val data = doc.data
+                    if (data != null) {
+                        Vehicle(
+                            id = doc.id,
+                            ownerId = data["ownerId"] as? String ?: "",
+                            vehicleNumber = data["vehicleNumber"] as? String ?: "",
+                            vehicleType = data["vehicleType"] as? String ?: "",
+                            color = data["color"] as? String ?: "",
+                            brand = data["brand"] as? String ?: "",
+                            model = data["model"] as? String ?: "",
+                            parkingLicenseValid = data["parkingLicenseValid"] as? Boolean ?: true,
+                            registrationExpiry = (data["registrationExpiry"] as? Number)?.toLong() ?: 0,
+                            createdAt = TimestampUtils.toMillis(data["createdAt"]),
+                            updatedAt = TimestampUtils.toMillis(data["updatedAt"])
+                        )
+                    } else null
+                } catch (e: Exception) {
+                    null
+                }
             }
             Result.success(vehicles)
         } catch (e: Exception) {
@@ -98,7 +129,26 @@ class VehicleRepository @Inject constructor(
                 .get()
                 .await()
             val vehicles = docs.documents.mapNotNull { doc ->
-                doc.toObject(Vehicle::class.java)?.apply { id = doc.id }
+                try {
+                    val data = doc.data
+                    if (data != null) {
+                        Vehicle(
+                            id = doc.id,
+                            ownerId = data["ownerId"] as? String ?: "",
+                            vehicleNumber = data["vehicleNumber"] as? String ?: "",
+                            vehicleType = data["vehicleType"] as? String ?: "",
+                            color = data["color"] as? String ?: "",
+                            brand = data["brand"] as? String ?: "",
+                            model = data["model"] as? String ?: "",
+                            parkingLicenseValid = data["parkingLicenseValid"] as? Boolean ?: true,
+                            registrationExpiry = (data["registrationExpiry"] as? Number)?.toLong() ?: 0,
+                            createdAt = TimestampUtils.toMillis(data["createdAt"]),
+                            updatedAt = TimestampUtils.toMillis(data["updatedAt"])
+                        )
+                    } else null
+                } catch (e: Exception) {
+                    null
+                }
             }
             emit(vehicles)
         } catch (e: Exception) {
@@ -110,7 +160,26 @@ class VehicleRepository @Inject constructor(
         return try {
             val docs = db.collection("vehicles").get().await()
             val vehicles = docs.documents.mapNotNull { doc ->
-                doc.toObject(Vehicle::class.java)?.apply { id = doc.id }
+                try {
+                    val data = doc.data
+                    if (data != null) {
+                        Vehicle(
+                            id = doc.id,
+                            ownerId = data["ownerId"] as? String ?: "",
+                            vehicleNumber = data["vehicleNumber"] as? String ?: "",
+                            vehicleType = data["vehicleType"] as? String ?: "",
+                            color = data["color"] as? String ?: "",
+                            brand = data["brand"] as? String ?: "",
+                            model = data["model"] as? String ?: "",
+                            parkingLicenseValid = data["parkingLicenseValid"] as? Boolean ?: true,
+                            registrationExpiry = (data["registrationExpiry"] as? Number)?.toLong() ?: 0,
+                            createdAt = TimestampUtils.toMillis(data["createdAt"]),
+                            updatedAt = TimestampUtils.toMillis(data["updatedAt"])
+                        )
+                    } else null
+                } catch (e: Exception) {
+                    null
+                }
             }
             Result.success(vehicles)
         } catch (e: Exception) {

@@ -1,14 +1,20 @@
 package com.example.autopark.ui.screens.admin
 
+import android.app.Activity
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -18,6 +24,7 @@ import androidx.navigation.NavController
 import com.example.autopark.ui.viewmodel.ReportsViewModel
 import com.example.autopark.util.CurrencyFormatter
 import com.example.autopark.util.DateFormatter
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -25,23 +32,55 @@ fun AdminReportsScreen(
     navController: NavController,
     viewModel: ReportsViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    
     val monthlyReport by viewModel.monthlyReport.collectAsStateWithLifecycle()
     val revenueStats by viewModel.revenueStats.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val isGeneratingPDF by viewModel.isGeneratingPDF.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
+    val pdfResult by viewModel.pdfGenerationResult.collectAsStateWithLifecycle()
 
     val (currentMonth, currentYear) = DateFormatter.getMonthAndYear()
     var selectedMonth by remember { mutableStateOf(currentMonth.toString()) }
     var selectedYear by remember { mutableStateOf(currentYear.toString()) }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // PDF Export Launcher
+    val pdfExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            result.data?.data?.let { uri ->
+                viewModel.generatePDFReport(uri)
+            }
+        }
+    }
+
+    // Show success/error messages
+    LaunchedEffect(pdfResult, errorMessage) {
+        pdfResult?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearPDFResult()
+        }
+        errorMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearError()
+        }
+    }
+
     LaunchedEffect(Unit) {
         viewModel.generateMonthlyReport(currentMonth, currentYear)
+        viewModel.loadRevenueStats()
+        viewModel.generateAdminReportForExport("$currentMonth/$currentYear")
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Reports") },
+                title = { Text("Admin Reports") },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
                         Icon(
@@ -54,7 +93,8 @@ fun AdminReportsScreen(
                     containerColor = MaterialTheme.colorScheme.primaryContainer
                 )
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
         LazyColumn(
             modifier = Modifier
@@ -99,28 +139,15 @@ fun AdminReportsScreen(
                         val month = selectedMonth.toIntOrNull() ?: currentMonth
                         val year = selectedYear.toIntOrNull() ?: currentYear
                         viewModel.generateMonthlyReport(month, year)
+                        viewModel.generateAdminReportForExport("$month/$year")
                     },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 12.dp)
                 ) {
+                    Icon(Icons.Default.Refresh, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text("Generate Report")
-                }
-            }
-
-            if (errorMessage != null) {
-                item {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp)
-                    ) {
-                        Text(
-                            text = errorMessage!!,
-                            modifier = Modifier.padding(16.dp),
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
                 }
             }
 
@@ -207,8 +234,52 @@ fun AdminReportsScreen(
                         }
                     }
                 }
+
+                // PDF Export Button
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = {
+                            val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                                addCategory(Intent.CATEGORY_OPENABLE)
+                                type = "application/pdf"
+                                putExtra(
+                                    Intent.EXTRA_TITLE, 
+                                    "admin_report_${selectedMonth}_${selectedYear}.pdf"
+                                )
+                            }
+                            pdfExportLauncher.launch(intent)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondary
+                        )
+                    ) {
+                        Icon(Icons.Default.Done, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Export as PDF")
+                    }
+                }
             }
         }
+    }
+
+    // Loading Dialog for PDF Generation
+    if (isGeneratingPDF) {
+        AlertDialog(
+            onDismissRequest = { },
+            title = { Text("Generating PDF") },
+            text = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    CircularProgressIndicator()
+                    Text("Please wait...")
+                }
+            },
+            confirmButton = { }
+        )
     }
 }
 

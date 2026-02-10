@@ -129,6 +129,9 @@ fun AppNavigation() {
         composable("driver_overdue_charges") {
             OverdueChargesScreen(navController)
         }
+        composable("driver_reports") {
+            com.example.autopark.ui.screens.driver.DriverReportsScreen(navController)
+        }
         composable("driver_parking_lots_map") {
             ParkingLotsMapScreen(navController)
         }

@@ -123,6 +123,12 @@ dependencies {
 // Barcode Scanning
     implementation("com.google.mlkit:barcode-scanning:17.2.0")
 
-// Permissions (if using Accompanist)
+    // Permissions (if using Accompanist)
     implementation("com.google.accompanist:accompanist-permissions:0.32.0")
+    
+    // PDF Generation
+    implementation("com.itextpdf:itext7-core:8.0.2")
+    
+    // Storage Access Framework
+    implementation("androidx.documentfile:documentfile:1.0.1")
 }

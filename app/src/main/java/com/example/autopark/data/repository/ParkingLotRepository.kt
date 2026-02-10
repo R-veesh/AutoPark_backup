@@ -1,6 +1,7 @@
 package com.example.autopark.data.repository
 
 import com.example.autopark.data.model.ParkingLot
+import com.example.autopark.util.TimestampUtils
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
@@ -73,9 +74,27 @@ class ParkingLotRepository @Inject constructor(
     suspend fun getParkingLot(lotId: String): Result<ParkingLot> {
         return try {
             val doc = db.collection("parking_lots").document(lotId).get().await()
-            val lot = doc.toObject(ParkingLot::class.java)
-            if (lot != null) {
-                lot.id = doc.id
+            val data = doc.data
+            if (data != null) {
+                val lot = ParkingLot(
+                    id = doc.id,
+                    name = data["name"] as? String ?: "",
+                    address = data["address"] as? String ?: "",
+                    latitude = (data["latitude"] as? Number)?.toDouble() ?: 0.0,
+                    longitude = (data["longitude"] as? Number)?.toDouble() ?: 0.0,
+                    city = data["city"] as? String ?: "",
+                    state = data["state"] as? String ?: "",
+                    zipCode = data["zipCode"] as? String ?: "",
+                    totalSpots = (data["totalSpots"] as? Number)?.toInt() ?: 0,
+                    availableSpots = (data["availableSpots"] as? Number)?.toInt() ?: 0,
+                    description = data["description"] as? String ?: "",
+                    contactNumber = data["contactNumber"] as? String ?: "",
+                    openingTime = data["openingTime"] as? String ?: "",
+                    closingTime = data["closingTime"] as? String ?: "",
+                    is24Hours = data["is24Hours"] as? Boolean ?: false,
+                    createdAt = TimestampUtils.toMillis(data["createdAt"]),
+                    updatedAt = TimestampUtils.toMillis(data["updatedAt"])
+                )
                 Result.success(lot)
             } else {
                 Result.failure(Exception("Parking lot not found"))
@@ -89,7 +108,32 @@ class ParkingLotRepository @Inject constructor(
         return try {
             val docs = db.collection("parking_lots").get().await()
             val lots = docs.documents.mapNotNull { doc ->
-                doc.toObject(ParkingLot::class.java)?.apply { id = doc.id }
+                try {
+                    val data = doc.data
+                    if (data != null) {
+                        ParkingLot(
+                            id = doc.id,
+                            name = data["name"] as? String ?: "",
+                            address = data["address"] as? String ?: "",
+                            latitude = (data["latitude"] as? Number)?.toDouble() ?: 0.0,
+                            longitude = (data["longitude"] as? Number)?.toDouble() ?: 0.0,
+                            city = data["city"] as? String ?: "",
+                            state = data["state"] as? String ?: "",
+                            zipCode = data["zipCode"] as? String ?: "",
+                            totalSpots = (data["totalSpots"] as? Number)?.toInt() ?: 0,
+                            availableSpots = (data["availableSpots"] as? Number)?.toInt() ?: 0,
+                            description = data["description"] as? String ?: "",
+                            contactNumber = data["contactNumber"] as? String ?: "",
+                            openingTime = data["openingTime"] as? String ?: "",
+                            closingTime = data["closingTime"] as? String ?: "",
+                            is24Hours = data["is24Hours"] as? Boolean ?: false,
+                            createdAt = TimestampUtils.toMillis(data["createdAt"]),
+                            updatedAt = TimestampUtils.toMillis(data["updatedAt"])
+                        )
+                    } else null
+                } catch (e: Exception) {
+                    null
+                }
             }
             Result.success(lots)
         } catch (e: Exception) {
@@ -104,7 +148,32 @@ class ParkingLotRepository @Inject constructor(
                 .get()
                 .await()
             val lots = docs.documents.mapNotNull { doc ->
-                doc.toObject(ParkingLot::class.java)?.apply { id = doc.id }
+                try {
+                    val data = doc.data
+                    if (data != null) {
+                        ParkingLot(
+                            id = doc.id,
+                            name = data["name"] as? String ?: "",
+                            address = data["address"] as? String ?: "",
+                            latitude = (data["latitude"] as? Number)?.toDouble() ?: 0.0,
+                            longitude = (data["longitude"] as? Number)?.toDouble() ?: 0.0,
+                            city = data["city"] as? String ?: "",
+                            state = data["state"] as? String ?: "",
+                            zipCode = data["zipCode"] as? String ?: "",
+                            totalSpots = (data["totalSpots"] as? Number)?.toInt() ?: 0,
+                            availableSpots = (data["availableSpots"] as? Number)?.toInt() ?: 0,
+                            description = data["description"] as? String ?: "",
+                            contactNumber = data["contactNumber"] as? String ?: "",
+                            openingTime = data["openingTime"] as? String ?: "",
+                            closingTime = data["closingTime"] as? String ?: "",
+                            is24Hours = data["is24Hours"] as? Boolean ?: false,
+                            createdAt = TimestampUtils.toMillis(data["createdAt"]),
+                            updatedAt = TimestampUtils.toMillis(data["updatedAt"])
+                        )
+                    } else null
+                } catch (e: Exception) {
+                    null
+                }
             }
             Result.success(lots)
         } catch (e: Exception) {

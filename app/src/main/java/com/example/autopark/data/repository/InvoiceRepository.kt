@@ -84,13 +84,11 @@ class InvoiceRepository @Inject constructor(
         return try {
             val docs = db.collection("invoices")
                 .whereEqualTo("ownerId", ownerId)
-                .orderBy("month")
-                .orderBy("year")
                 .get()
                 .await()
             val invoices = docs.documents.mapNotNull { doc ->
                 doc.toObject(Invoice::class.java)?.apply { id = doc.id }
-            }
+            }.sortedWith(compareBy({ it.year }, { it.month })) // Sort in memory instead
             Result.success(invoices)
         } catch (e: Exception) {
             Result.failure(e)

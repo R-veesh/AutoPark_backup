@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -88,11 +89,29 @@ fun InvoiceScreen(
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
             } else if (invoices.isEmpty()) {
-                Text(
-                    "No invoices",
+                Column(
                     modifier = Modifier.align(Alignment.CenterHorizontally),
-                    style = MaterialTheme.typography.bodyLarge
-                )
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        "No invoices found",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = { viewModel.generateCurrentMonthInvoice() },
+                        enabled = !isLoading
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text("Generate Current Month Invoice")
+                        }
+                    }
+                }
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(invoices) { invoice ->
@@ -133,12 +152,13 @@ fun InvoiceScreen(
                                 Spacer(modifier = Modifier.height(12.dp))
                                 Button(
                                     onClick = { 
-                                        // Navigate to invoice detail or show in dialog
-                                        navController.navigate("invoice_detail/${invoice.id}")
+                                        // TODO: Navigate to invoice detail when route is available
+                                        // navController.navigate("invoice_detail/${invoice.id}")
                                     },
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = false
                                 ) {
-                                    Text("View Details")
+                                    Text("View Details (Coming Soon)")
                                 }
                             }
                         }

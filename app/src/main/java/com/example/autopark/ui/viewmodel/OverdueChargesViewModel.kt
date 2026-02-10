@@ -77,18 +77,31 @@ class OverdueChargesViewModel @Inject constructor(
     fun loadOverdueCharges() {
         viewModelScope.launch {
             _isLoading.value = true
-            val userId = authRepository.getCurrentUserId()
-            if (userId != null) {
-                val result = overdueChargeRepository.getPendingOverdueCharges(userId)
-                result.onSuccess { charges ->
-                    _overdueCharges.value = charges
-                    _totalOverdue.value = charges.sumOf { it.totalDueAmount }
-                    _errorMessage.value = null
-                }.onFailure { error ->
-                    _errorMessage.value = error.message ?: "Failed to load overdue charges"
+            _errorMessage.value = null
+            try {
+                val userId = authRepository.getCurrentUserId()
+                if (userId != null) {
+                    Log.d("OverdueChargesVM", "Loading overdue charges for user: $userId")
+                    val result = overdueChargeRepository.getPendingOverdueCharges(userId)
+                    result.onSuccess { charges ->
+                        Log.d("OverdueChargesVM", "Loaded ${charges.size} charges for user")
+                        _overdueCharges.value = charges
+                        _totalOverdue.value = charges.sumOf { it.totalDueAmount }
+                        _errorMessage.value = null
+                    }.onFailure { error ->
+                        Log.e("OverdueChargesVM", "Failed to load charges: ${error.message}")
+                        _errorMessage.value = error.message ?: "Failed to load overdue charges"
+                    }
+                } else {
+                    Log.e("OverdueChargesVM", "User not authenticated")
+                    _errorMessage.value = "User not authenticated"
                 }
+            } catch (e: Exception) {
+                Log.e("OverdueChargesVM", "Exception loading charges: ${e.message}", e)
+                _errorMessage.value = e.message ?: "An error occurred"
+            } finally {
+                _isLoading.value = false
             }
-            _isLoading.value = false
         }
     }
 
@@ -98,36 +111,43 @@ class OverdueChargesViewModel @Inject constructor(
     fun loadAllOverdueCharges() {
         viewModelScope.launch {
             _isLoading.value = true
+            _errorMessage.value = null
             
-            // Remove previous listener
-            listenerRegistration?.remove()
-            
-            // Set up real-time listener for all overdue charges
-            listenerRegistration = db.collection("overdue_charges")
-                .addSnapshotListener { snapshot, error ->
-                    if (error != null) {
-                        Log.e("OverdueChargesVM", "Firestore error: ${error.message}")
-                        _errorMessage.value = error.message ?: "Failed to load overdue charges"
-                        _isLoading.value = false
-                        return@addSnapshotListener
-                    }
-
-                    if (snapshot != null) {
-                        Log.d("OverdueChargesVM", "Received ${snapshot.documents.size} documents from Firestore")
-                        val chargesList = snapshot.documents.mapNotNull { doc ->
-                            parseOverdueChargeFromDocument(doc.id, doc.data)
+            try {
+                // Remove previous listener
+                listenerRegistration?.remove()
+                
+                // Set up real-time listener for all overdue charges
+                listenerRegistration = db.collection("overdue_charges")
+                    .addSnapshotListener { snapshot, error ->
+                        if (error != null) {
+                            Log.e("OverdueChargesVM", "Firestore error: ${error.message}")
+                            _errorMessage.value = "Database error: ${error.message}"
+                            _isLoading.value = false
+                            return@addSnapshotListener
                         }
-                        Log.d("OverdueChargesVM", "Successfully parsed ${chargesList.size} charges")
-                        _overdueCharges.value = chargesList
-                        _totalOverdue.value = chargesList
-                            .filter { it.status == "PENDING" }
-                            .sumOf { it.totalAmount }
-                        _errorMessage.value = null
-                    } else {
-                        Log.w("OverdueChargesVM", "Snapshot is null")
+
+                        if (snapshot != null) {
+                            Log.d("OverdueChargesVM", "Received ${snapshot.documents.size} documents from Firestore")
+                            val chargesList = snapshot.documents.mapNotNull { doc ->
+                                parseOverdueChargeFromDocument(doc.id, doc.data)
+                            }
+                            Log.d("OverdueChargesVM", "Successfully parsed ${chargesList.size} charges")
+                            _overdueCharges.value = chargesList
+                            _totalOverdue.value = chargesList
+                                .filter { it.status == "PENDING" }
+                                .sumOf { it.totalAmount }
+                            _errorMessage.value = null
+                        } else {
+                            Log.w("OverdueChargesVM", "Snapshot is null")
+                        }
+                        _isLoading.value = false
                     }
-                    _isLoading.value = false
-                }
+            } catch (e: Exception) {
+                Log.e("OverdueChargesVM", "Exception setting up listener: ${e.message}", e)
+                _errorMessage.value = "Failed to connect: ${e.message}"
+                _isLoading.value = false
+            }
         }
     }
 
@@ -208,14 +228,22 @@ class OverdueChargesViewModel @Inject constructor(
     fun processAllOverdueInvoices() {
         viewModelScope.launch {
             _isLoading.value = true
-            val result = invoiceGenerationService.processOverdueInvoices()
-            result.onSuccess { count ->
-                loadOverdueCharges()
-                _errorMessage.value = null
-            }.onFailure { error ->
-                _errorMessage.value = error.message ?: "Failed to process overdue invoices"
+            try {
+                val result = invoiceGenerationService.processOverdueInvoices()
+                result.onSuccess { count ->
+                    Log.d("OverdueChargesVM", "Processed overdue invoices for $count users")
+                    loadAllOverdueCharges()
+                    _errorMessage.value = null
+                }.onFailure { error ->
+                    Log.e("OverdueChargesVM", "Failed to process overdue invoices: ${error.message}")
+                    _errorMessage.value = error.message ?: "Failed to process overdue invoices"
+                }
+            } catch (e: Exception) {
+                Log.e("OverdueChargesVM", "Exception processing overdue invoices: ${e.message}", e)
+                _errorMessage.value = e.message ?: "An error occurred while processing"
+            } finally {
+                _isLoading.value = false
             }
-            _isLoading.value = false
         }
     }
 

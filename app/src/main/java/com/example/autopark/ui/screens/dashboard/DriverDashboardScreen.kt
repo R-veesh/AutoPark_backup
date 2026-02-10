@@ -63,12 +63,13 @@ fun DriverDashboardScreen(
             description = "View your parking history",
             route = "driver_parking_history"
         ),
-        DashboardItem(
-            title = "My Reports",
-            icon = Icons.Default.ArrowDropDown,
-            description = "View and export your reports",
-            route = "driver_reports"
-        ),
+ // meka erala mata kiyala era ganna epa
+//        DashboardItem(
+//            title = "My Reports",
+//            icon = Icons.Default.ArrowDropDown,
+//            description = "View and export your reports",
+//            route = "driver_reports"
+//        ),
         DashboardItem(
             title = "Invoices",
             icon = Icons.Default.ArrowDropDown,

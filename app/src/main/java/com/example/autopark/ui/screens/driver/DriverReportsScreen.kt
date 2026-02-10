@@ -42,6 +42,12 @@ fun DriverReportsScreen(
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     val pdfResult by viewModel.pdfGenerationResult.collectAsStateWithLifecycle()
     
+    // Summary statistics
+    val totalCharges by viewModel.totalCharges.collectAsStateWithLifecycle()
+    val averageCharge by viewModel.averageCharge.collectAsStateWithLifecycle()
+    val completedCount by viewModel.completedTransactionsCount.collectAsStateWithLifecycle()
+    val activeCount by viewModel.activeTransactionsCount.collectAsStateWithLifecycle()
+    
     val snackbarHostState = remember { SnackbarHostState() }
 
     // PDF Export Launcher
@@ -133,10 +139,10 @@ fun DriverReportsScreen(
                     SummaryCard(
                         totalVehicles = vehicles.size,
                         totalTransactions = transactions.size,
-                        completedTransactions = viewModel.getCompletedTransactionsCount(),
-                        activeTransactions = viewModel.getActiveTransactionsCount(),
-                        totalCharges = viewModel.calculateTotalCharges(),
-                        averageCharge = viewModel.calculateAverageCharge()
+                        completedTransactions = completedCount,
+                        activeTransactions = activeCount,
+                        totalCharges = totalCharges,
+                        averageCharge = averageCharge
                     )
                 }
 

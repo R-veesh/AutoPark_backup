@@ -145,9 +145,9 @@ class OverdueChargeRepository @Inject constructor(
 
     suspend fun getPendingOverdueCharges(ownerId: String): Result<List<OverdueCharge>> {
         return try {
+            // Query without composite index - filter client-side
             val docs = db.collection("overdue_charges")
                 .whereEqualTo("ownerId", ownerId)
-                .whereEqualTo("paymentStatus", "PENDING")
                 .get()
                 .await()
             val charges = docs.documents.mapNotNull { doc ->
@@ -179,7 +179,7 @@ class OverdueChargeRepository @Inject constructor(
                 } catch (e: Exception) {
                     null
                 }
-            }
+            }.filter { it.paymentStatus == "PENDING" } // Client-side filter
             Result.success(charges)
         } catch (e: Exception) {
             Result.failure(e)

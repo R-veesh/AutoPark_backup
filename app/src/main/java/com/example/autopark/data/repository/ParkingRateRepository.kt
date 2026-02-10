@@ -1,6 +1,8 @@
 package com.example.autopark.data.repository
 
+import android.util.Log
 import com.example.autopark.data.model.ParkingRate
+import com.example.autopark.util.TimestampUtils
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
@@ -8,6 +10,29 @@ import javax.inject.Inject
 class ParkingRateRepository @Inject constructor(
     private val db: FirebaseFirestore
 ) {
+    private fun parseParkingRateFromDocument(docId: String, data: Map<String, Any?>?): ParkingRate? {
+        if (data == null) return null
+        return try {
+            ParkingRate(
+                id = docId,
+                parkingLotId = data["parkingLotId"] as? String ?: "",
+                rateType = data["rateType"] as? String ?: "",
+                pricePerHour = (data["pricePerHour"] as? Number)?.toDouble() ?: 0.0,
+                pricePerDay = (data["pricePerDay"] as? Number)?.toDouble() ?: 0.0,
+                overnightPrice = (data["overnightPrice"] as? Number)?.toDouble() ?: 0.0,
+                minChargeAmount = (data["minChargeAmount"] as? Number)?.toDouble() ?: 0.0,
+                maxChargePerDay = (data["maxChargePerDay"] as? Number)?.toDouble() ?: 0.0,
+                isActive = data["isActive"] as? Boolean ?: true,
+                vipMultiplier = (data["vipMultiplier"] as? Number)?.toDouble() ?: 1.0,
+                createdAt = TimestampUtils.toMillis(data["createdAt"]),
+                updatedAt = TimestampUtils.toMillis(data["updatedAt"])
+            )
+        } catch (e: Exception) {
+            Log.e("ParkingRateRepo", "Error parsing parking rate: ${e.message}")
+            null
+        }
+    }
+
     suspend fun addParkingRate(rate: ParkingRate): Result<String> {
         return try {
             val rateMap = hashMapOf(
@@ -63,10 +88,14 @@ class ParkingRateRepository @Inject constructor(
     suspend fun getParkingRate(rateId: String): Result<ParkingRate> {
         return try {
             val doc = db.collection("parking_rates").document(rateId).get().await()
-            val rate = doc.toObject(ParkingRate::class.java)
-            if (rate != null) {
-                rate.id = doc.id
-                Result.success(rate)
+            val data = doc.data
+            if (data != null) {
+                val rate = parseParkingRateFromDocument(doc.id, data)
+                if (rate != null) {
+                    Result.success(rate)
+                } else {
+                    Result.failure(Exception("Failed to parse parking rate"))
+                }
             } else {
                 Result.failure(Exception("Parking rate not found"))
             }
@@ -82,7 +111,7 @@ class ParkingRateRepository @Inject constructor(
                 .get()
                 .await()
             val rates = docs.documents.mapNotNull { doc ->
-                doc.toObject(ParkingRate::class.java)?.apply { id = doc.id }
+                parseParkingRateFromDocument(doc.id, doc.data)
             }
             Result.success(rates)
         } catch (e: Exception) {
@@ -98,7 +127,7 @@ class ParkingRateRepository @Inject constructor(
                 .get()
                 .await()
             val rates = docs.documents.mapNotNull { doc ->
-                doc.toObject(ParkingRate::class.java)?.apply { id = doc.id }
+                parseParkingRateFromDocument(doc.id, doc.data)
             }
             Result.success(rates)
         } catch (e: Exception) {
@@ -106,13 +135,11 @@ class ParkingRateRepository @Inject constructor(
         }
     }
 
-    
-
     suspend fun getAllParkingRates(): Result<List<ParkingRate>> {
         return try {
             val docs = db.collection("parking_rates").get().await()
             val rates = docs.documents.mapNotNull { doc ->
-                doc.toObject(ParkingRate::class.java)?.apply { id = doc.id }
+                parseParkingRateFromDocument(doc.id, doc.data)
             }
             Result.success(rates)
         } catch (e: Exception) {
@@ -129,7 +156,7 @@ class ParkingRateRepository @Inject constructor(
                 .get()
                 .await()
             val rate = docs.documents.mapNotNull { doc ->
-                doc.toObject(ParkingRate::class.java)?.apply { id = doc.id }
+                parseParkingRateFromDocument(doc.id, doc.data)
             }.firstOrNull()
             Result.success(rate)
         } catch (e: Exception) {

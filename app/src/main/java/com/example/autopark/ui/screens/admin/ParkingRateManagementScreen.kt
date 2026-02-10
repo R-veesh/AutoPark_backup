@@ -1,6 +1,8 @@
 package com.example.autopark.ui.screens.admin
 
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,6 +20,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -54,20 +57,34 @@ fun ParkingRateManagementScreen(
     viewModel: ParkingRateViewModel = hiltViewModel()
 ) {
     val rates by viewModel.ratesForLot.collectAsStateWithLifecycle()
+    val allRates by viewModel.allRates.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
 
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedRate by remember { mutableStateOf<ParkingRate?>(null) }
 
+    // Load rates when screen opens
     LaunchedEffect(parkingLotId) {
-        parkingLotId?.let { viewModel.loadRatesForLot(it) }
+        if (parkingLotId != null) {
+            Log.d("ParkingRateScreen", "Loading rates for lot: $parkingLotId")
+            viewModel.loadRatesForLot(parkingLotId)
+        } else {
+            Log.d("ParkingRateScreen", "Loading all rates")
+            viewModel.loadAllRates()
+        }
     }
+
+    val displayRates = if (parkingLotId != null) rates else allRates
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Parking Rates") },
+                title = { 
+                    Text(
+                        if (parkingLotId != null) "Parking Rates" else "All Parking Rates"
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -97,29 +114,61 @@ fun ParkingRateManagementScreen(
                 .padding(16.dp)
         ) {
             if (errorMessage != null) {
-                Card(modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp)) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    )
+                ) {
                     Text(
                         errorMessage!!,
                         modifier = Modifier.padding(16.dp),
-                        color = MaterialTheme.colorScheme.error
+                        color = MaterialTheme.colorScheme.onErrorContainer
                     )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            if (isLoading) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
-            } else if (rates.isEmpty()) {
-                Text(
-                    "No rates configured",
-                    modifier = Modifier.align(Alignment.CenterHorizontally),
-                    style = MaterialTheme.typography.bodyLarge
-                )
+            if (isLoading && displayRates.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            } else if (displayRates.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            "No rates configured",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "Tap + to add a rate",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             } else {
+                Text(
+                    "${displayRates.size} rate(s) found",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(rates) { rate ->
+                    items(displayRates) { rate ->
                         ParkingRateCard(
                             rate = rate,
                             onEdit = {
@@ -159,18 +208,86 @@ fun ParkingRateCard(
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(rate.rateType, style = MaterialTheme.typography.titleLarge)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    rate.rateType,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                if (rate.isActive) {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        )
+                    ) {
+                        Text(
+                            "Active",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text(
+                        "Per Hour:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        CurrencyFormatter.formatCurrency(rate.pricePerHour),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                Column {
+                    Text(
+                        "Per Day:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        CurrencyFormatter.formatCurrency(rate.pricePerDay),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                Column {
+                    Text(
+                        "Overnight:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        CurrencyFormatter.formatCurrency(rate.overnightPrice),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+            
             Spacer(modifier = Modifier.height(8.dp))
-            Text("Per Hour: ${CurrencyFormatter.formatCurrency(rate.pricePerHour)}",
-                style = MaterialTheme.typography.bodySmall)
-            Text("Per Day: ${CurrencyFormatter.formatCurrency(rate.pricePerDay)}",
-                style = MaterialTheme.typography.bodySmall)
-            Text("Overnight: ${CurrencyFormatter.formatCurrency(rate.overnightPrice)}",
-                style = MaterialTheme.typography.bodySmall)
-            Text("Min Charge: ${CurrencyFormatter.formatCurrency(rate.minChargeAmount)}",
-                style = MaterialTheme.typography.bodySmall)
+            
+            Text(
+                "Min Charge: ${CurrencyFormatter.formatCurrency(rate.minChargeAmount)} | " +
+                "Max: ${CurrencyFormatter.formatCurrency(rate.maxChargePerDay)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            
             Spacer(modifier = Modifier.height(12.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -195,25 +312,27 @@ fun ParkingRateDialog(
     onConfirm: (ParkingRate) -> Unit
 ) {
     var rateType by remember { mutableStateOf(rate?.rateType ?: "NORMAL") }
-    var pricePerHour by remember { mutableStateOf(rate?.pricePerHour?.toString() ?: "") }
-    var pricePerDay by remember { mutableStateOf(rate?.pricePerDay?.toString() ?: "") }
-    var overnightPrice by remember { mutableStateOf(rate?.overnightPrice?.toString() ?: "") }
-    var minCharge by remember { mutableStateOf(rate?.minChargeAmount?.toString() ?: "") }
-    var maxCharge by remember { mutableStateOf(rate?.maxChargePerDay?.toString() ?: "") }
+    var pricePerHour by remember { mutableStateOf(rate?.pricePerHour?.toString() ?: "5.0") }
+    var pricePerDay by remember { mutableStateOf(rate?.pricePerDay?.toString() ?: "50.0") }
+    var overnightPrice by remember { mutableStateOf(rate?.overnightPrice?.toString() ?: "30.0") }
+    var minCharge by remember { mutableStateOf(rate?.minChargeAmount?.toString() ?: "5.0") }
+    var maxCharge by remember { mutableStateOf(rate?.maxChargePerDay?.toString() ?: "100.0") }
+    var isActive by remember { mutableStateOf(rate?.isActive ?: true) }
 
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (rate != null) "Edit Rate" else "Add Rate") },
         text = {
-            LazyColumn(modifier = Modifier.fillMaxWidth()) {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 item {
                     OutlinedTextField(
                         value = rateType,
-                        onValueChange = { rateType = it },
-                        label = { Text("Rate Type") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(8.dp)
+                        onValueChange = { rateType = it.uppercase() },
+                        label = { Text("Rate Type (NORMAL/VIP/HOURLY)") },
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
                 item {
@@ -221,10 +340,8 @@ fun ParkingRateDialog(
                         value = pricePerHour,
                         onValueChange = { pricePerHour = it },
                         label = { Text("Price Per Hour") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(8.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
                 item {
@@ -232,10 +349,8 @@ fun ParkingRateDialog(
                         value = pricePerDay,
                         onValueChange = { pricePerDay = it },
                         label = { Text("Price Per Day") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(8.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
                 item {
@@ -243,32 +358,26 @@ fun ParkingRateDialog(
                         value = overnightPrice,
                         onValueChange = { overnightPrice = it },
                         label = { Text("Overnight Price") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(8.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
                 item {
                     OutlinedTextField(
                         value = minCharge,
                         onValueChange = { minCharge = it },
-                        label = { Text("Min Charge") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(8.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                        label = { Text("Minimum Charge") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
                 item {
                     OutlinedTextField(
                         value = maxCharge,
                         onValueChange = { maxCharge = it },
-                        label = { Text("Max Charge Per Day") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(8.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                        label = { Text("Maximum Charge Per Day") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
@@ -276,21 +385,24 @@ fun ParkingRateDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    val lotId = parkingLotId ?: rate?.parkingLotId ?: "default"
-                    onConfirm(
-                        (rate ?: ParkingRate(parkingLotId = lotId)).copy(
-                            parkingLotId = lotId,
-                            rateType = rateType,
-                            pricePerHour = pricePerHour.toDoubleOrNull() ?: 0.0,
-                            pricePerDay = pricePerDay.toDoubleOrNull() ?: 0.0,
-                            overnightPrice = overnightPrice.toDoubleOrNull() ?: 0.0,
-                            minChargeAmount = minCharge.toDoubleOrNull() ?: 0.0,
-                            maxChargePerDay = maxCharge.toDoubleOrNull() ?: 0.0
+                    val lotId = parkingLotId ?: rate?.parkingLotId ?: ""
+                    if (lotId.isNotEmpty()) {
+                        onConfirm(
+                            (rate ?: ParkingRate(parkingLotId = lotId)).copy(
+                                parkingLotId = lotId,
+                                rateType = rateType,
+                                pricePerHour = pricePerHour.toDoubleOrNull() ?: 0.0,
+                                pricePerDay = pricePerDay.toDoubleOrNull() ?: 0.0,
+                                overnightPrice = overnightPrice.toDoubleOrNull() ?: 0.0,
+                                minChargeAmount = minCharge.toDoubleOrNull() ?: 0.0,
+                                maxChargePerDay = maxCharge.toDoubleOrNull() ?: 0.0,
+                                isActive = isActive
+                            )
                         )
-                    )
+                    }
                 }
             ) {
-                Text("Confirm")
+                Text("Save")
             }
         },
         dismissButton = {

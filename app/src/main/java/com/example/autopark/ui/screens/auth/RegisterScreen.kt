@@ -1,24 +1,40 @@
 package com.example.autopark.ui.screens.auth
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.example.autopark.ui.components.*
 import com.example.autopark.ui.viewmodel.AuthUiState
 import com.example.autopark.ui.viewmodel.AuthViewModel
 import com.example.autopark.util.FormValidator
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterScreen(
     navController: NavController,
@@ -27,6 +43,7 @@ fun RegisterScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
 
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -40,6 +57,13 @@ fun RegisterScreen(
     var confirmPasswordError by remember { mutableStateOf<String?>(null) }
     var nameError by remember { mutableStateOf<String?>(null) }
     var phoneError by remember { mutableStateOf<String?>(null) }
+
+    // Animation states
+    var showContent by remember { mutableStateOf(false) }
+    
+    LaunchedEffect(Unit) {
+        showContent = true
+    }
 
     /* ---------------- STATE HANDLING ---------------- */
 
@@ -58,9 +82,12 @@ fun RegisterScreen(
             }
 
             is AuthUiState.Error -> {
-                snackbarHostState.showSnackbar(
-                    (uiState as AuthUiState.Error).message
-                )
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        message = (uiState as AuthUiState.Error).message,
+                        withDismissAction = true
+                    )
+                }
             }
 
             else -> Unit
@@ -100,138 +127,293 @@ fun RegisterScreen(
     /* ---------------- UI ---------------- */
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) }
-    ) { padding ->
-
-        Column(
+        snackbarHost = { 
+            SnackbarHost(hostState = snackbarHostState) {
+                Snackbar(
+                    snackbarData = it,
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+        }
+    ) { paddingValues ->
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .padding(24.dp),
-            verticalArrangement = Arrangement.Center
+                .padding(paddingValues)
         ) {
-
-            Text(
-                text = "Create Account",
-                style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.padding(bottom = 24.dp)
-            )
-
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it; nameError = null },
-                label = { Text("Full Name") },
-                modifier = Modifier.fillMaxWidth(),
-                isError = nameError != null,
-                supportingText = { nameError?.let { Text(it, color = MaterialTheme.colorScheme.error) } }
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            OutlinedTextField(
-                value = email,
-                onValueChange = { email = it; emailError = null },
-                label = { Text("Email") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                modifier = Modifier.fillMaxWidth(),
-                isError = emailError != null,
-                supportingText = { emailError?.let { Text(it, color = MaterialTheme.colorScheme.error) } }
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            OutlinedTextField(
-                value = phoneNumber,
-                onValueChange = { phoneNumber = it; phoneError = null },
-                label = { Text("Phone Number") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                modifier = Modifier.fillMaxWidth(),
-                isError = phoneError != null,
-                supportingText = { phoneError?.let { Text(it, color = MaterialTheme.colorScheme.error) } }
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it; passwordError = null },
-                label = { Text("Password") },
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                modifier = Modifier.fillMaxWidth(),
-                isError = passwordError != null,
-                supportingText = { passwordError?.let { Text(it, color = MaterialTheme.colorScheme.error) } }
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            OutlinedTextField(
-                value = confirmPassword,
-                onValueChange = { confirmPassword = it; confirmPasswordError = null },
-                label = { Text("Confirm Password") },
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                modifier = Modifier.fillMaxWidth(),
-                isError = confirmPasswordError != null,
-                supportingText = { confirmPasswordError?.let { Text(it, color = MaterialTheme.colorScheme.error) } }
-            )
-
-            Spacer(Modifier.height(16.dp))
-
-            Text("Select Role", style = MaterialTheme.typography.labelLarge)
-
-            Spacer(Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                listOf("driver", "admin").forEach { role ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.selectable(
-                            selected = selectedRole == role,
-                            onClick = { selectedRole = role },
-                            role = Role.RadioButton
+            // Gradient background
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .background(
+                        brush = Brush.linearGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.primary,
+                                MaterialTheme.colorScheme.secondary
+                            ),
+                            start = Offset(0f, 0f),
+                            end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
                         )
+                    )
+            )
+
+            // Decorative circles
+            Box(
+                modifier = Modifier
+                    .size(150.dp)
+                    .offset(x = (-30).dp, y = (-30).dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.1f))
+            )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Spacer(modifier = Modifier.height(40.dp))
+
+                // Title Section
+                AnimatedVisibility(
+                    visible = showContent,
+                    enter = fadeIn(animationSpec = tween(600)) +
+                            slideInVertically(animationSpec = tween(600)) { -it / 2 }
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        RadioButton(selected = selectedRole == role, onClick = null)
-                        Text(role.replaceFirstChar { it.uppercase() })
+                        Text(
+                            text = "Create Account",
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Text(
+                            text = "Join AutoPark today",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
                     }
                 }
-            }
 
-            Spacer(Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(32.dp))
 
-            if (uiState is AuthUiState.Loading) {
-                CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally))
-            } else {
-                Button(
-                    onClick = {
-                        if (validateForm()) {
-                            viewModel.register(
-                                email,
-                                password,
-                                name,
-                                phoneNumber,
-                                selectedRole
+                // Registration Form Card
+                AnimatedVisibility(
+                    visible = showContent,
+                    enter = fadeIn(animationSpec = tween(600, delayMillis = 200)) +
+                            slideInVertically(animationSpec = tween(600, delayMillis = 200)) { it }
+                ) {
+                    ModernCard(
+                        shape = RoundedCornerShape(24.dp),
+                        elevation = 8.dp
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(28.dp)
+                        ) {
+                            // Name Field
+                            ModernTextField(
+                                value = name,
+                                onValueChange = { 
+                                    name = it
+                                    nameError = null
+                                },
+                                label = "Full Name",
+                                placeholder = "Enter your full name",
+                                leadingIcon = Icons.Default.Person,
+                                isError = nameError != null,
+                                errorMessage = nameError ?: ""
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Email Field
+                            ModernTextField(
+                                value = email,
+                                onValueChange = { 
+                                    email = it
+                                    emailError = null
+                                },
+                                label = "Email Address",
+                                placeholder = "Enter your email",
+                                leadingIcon = Icons.Default.Email,
+                                keyboardType = KeyboardType.Email,
+                                isError = emailError != null,
+                                errorMessage = emailError ?: ""
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Phone Field
+                            ModernTextField(
+                                value = phoneNumber,
+                                onValueChange = { 
+                                    phoneNumber = it
+                                    phoneError = null
+                                },
+                                label = "Phone Number",
+                                placeholder = "Enter your phone number",
+                                leadingIcon = Icons.Default.Phone,
+                                keyboardType = KeyboardType.Phone,
+                                isError = phoneError != null,
+                                errorMessage = phoneError ?: ""
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Password Field
+                            ModernTextField(
+                                value = password,
+                                onValueChange = { 
+                                    password = it
+                                    passwordError = null
+                                },
+                                label = "Password",
+                                placeholder = "Create a password",
+                                leadingIcon = Icons.Default.Lock,
+                                isPassword = true,
+                                isError = passwordError != null,
+                                errorMessage = passwordError ?: ""
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Confirm Password Field
+                            ModernTextField(
+                                value = confirmPassword,
+                                onValueChange = { 
+                                    confirmPassword = it
+                                    confirmPasswordError = null
+                                },
+                                label = "Confirm Password",
+                                placeholder = "Confirm your password",
+                                leadingIcon = Icons.Default.Lock,
+                                isPassword = true,
+                                isError = confirmPasswordError != null,
+                                errorMessage = confirmPasswordError ?: ""
+                            )
+
+                            Spacer(modifier = Modifier.height(20.dp))
+
+                            // Role Selection
+                            Text(
+                                text = "Select Role",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                listOf("driver" to "Vehicle Owner", "admin" to "Administrator").forEach { (role, label) ->
+                                    RoleSelectionCard(
+                                        role = role,
+                                        label = label,
+                                        isSelected = selectedRole == role,
+                                        onSelect = { selectedRole = role },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(24.dp))
+
+                            // Register Button
+                            GradientButton(
+                                text = "Create Account",
+                                onClick = {
+                                    if (validateForm()) {
+                                        viewModel.register(
+                                            email,
+                                            password,
+                                            name,
+                                            phoneNumber,
+                                            selectedRole
+                                        )
+                                    }
+                                },
+                                enabled = name.isNotBlank() && email.isNotBlank() && 
+                                         phoneNumber.isNotBlank() && password.isNotBlank() && 
+                                         confirmPassword.isNotBlank(),
+                                isLoading = uiState == AuthUiState.Loading
+                            )
+
+                            Spacer(modifier = Modifier.height(20.dp))
+
+                            // Back to Login
+                            SecondaryButton(
+                                text = "Back to Sign In",
+                                onClick = { navController.navigateUp() }
                             )
                         }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Sign Up")
+                    }
                 }
-            }
 
-            Spacer(Modifier.height(16.dp))
-
-            OutlinedButton(
-                onClick = { navController.navigateUp() },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Back to Login")
+                Spacer(modifier = Modifier.height(32.dp))
             }
+        }
+    }
+}
+
+@Composable
+private fun RoleSelectionCard(
+    role: String,
+    label: String,
+    isSelected: Boolean,
+    onSelect: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        onClick = onSelect,
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            }
+        ),
+        border = if (isSelected) {
+            androidx.compose.foundation.BorderStroke(
+                width = 2.dp,
+                color = MaterialTheme.colorScheme.primary
+            )
+        } else null
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            RadioButton(
+                selected = isSelected,
+                onClick = null,
+                colors = RadioButtonDefaults.colors(
+                    selectedColor = MaterialTheme.colorScheme.primary
+                )
+            )
+            
+            Spacer(modifier = Modifier.width(8.dp))
+            
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+            )
         }
     }
 }

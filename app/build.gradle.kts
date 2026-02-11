@@ -131,4 +131,9 @@ dependencies {
     
     // Storage Access Framework
     implementation("androidx.documentfile:documentfile:1.0.1")
+
+
+    implementation(platform("androidx.compose:compose-bom:2024.01.00"))
+    implementation("androidx.compose.material:material-icons-extended")
+
 }

@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
 @HiltViewModel
@@ -81,6 +82,9 @@ class OverdueChargesViewModel @Inject constructor(
                 paymentStatus = data["paymentStatus"] as? String ?: "PENDING",
                 paymentDate = (data["paymentDate"] as? Number)?.toLong(),
                 amountPaid = (data["amountPaid"] as? Number)?.toDouble() ?: 0.0,
+                transactionId = data["transactionId"] as? String ?: "",
+                parkingStatus = data["parkingStatus"] as? String ?: "",
+                transactionPaymentStatus = data["transactionPaymentStatus"] as? String ?: "",
                 createdAt = TimestampUtils.toMillis(data["createdAt"]),
                 updatedAt = TimestampUtils.toMillis(data["updatedAt"])
             )
@@ -137,16 +141,17 @@ class OverdueChargesViewModel @Inject constructor(
 
     /**
      * Load all overdue charges for admin (real-time from Firestore)
+     * Also enriches with parking transaction data to show payment status
      */
     fun loadAllOverdueCharges() {
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
-            
+
             try {
                 // Remove previous listener
                 listenerRegistration?.remove()
-                
+
                 // Set up real-time listener for all overdue charges
                 listenerRegistration = db.collection("overdue_charges")
                     .addSnapshotListener { snapshot, error ->
@@ -159,19 +164,33 @@ class OverdueChargesViewModel @Inject constructor(
 
                         if (snapshot != null) {
                             Log.d("OverdueChargesVM", "Received ${snapshot.documents.size} documents from Firestore")
-                            val chargesList = snapshot.documents.mapNotNull { doc ->
-                                parseOverdueChargeFromDocument(doc.id, doc.data)
+
+                            viewModelScope.launch {
+                                val chargesList = snapshot.documents.mapNotNull { doc ->
+                                    parseOverdueChargeFromDocument(doc.id, doc.data)
+                                }
+
+                                // Enrich charges with transaction data
+                                val enrichedCharges = chargesList.map { charge ->
+                                    if (charge.transactionId.isNotEmpty()) {
+                                        enrichChargeWithTransactionData(charge)
+                                    } else {
+                                        charge
+                                    }
+                                }
+
+                                Log.d("OverdueChargesVM", "Successfully parsed and enriched ${enrichedCharges.size} charges")
+                                _overdueCharges.value = enrichedCharges
+                                _totalOverdue.value = enrichedCharges
+                                    .filter { it.parkingStatus == "COMPLETED" && it.transactionPaymentStatus == "PENDING" }
+                                    .sumOf { it.totalAmount }
+                                _errorMessage.value = null
+                                _isLoading.value = false
                             }
-                            Log.d("OverdueChargesVM", "Successfully parsed ${chargesList.size} charges")
-                            _overdueCharges.value = chargesList
-                            _totalOverdue.value = chargesList
-                                .filter { it.status == "PENDING" }
-                                .sumOf { it.totalAmount }
-                            _errorMessage.value = null
                         } else {
                             Log.w("OverdueChargesVM", "Snapshot is null")
+                            _isLoading.value = false
                         }
-                        _isLoading.value = false
                     }
             } catch (e: Exception) {
                 Log.e("OverdueChargesVM", "Exception setting up listener: ${e.message}", e)
@@ -182,28 +201,69 @@ class OverdueChargesViewModel @Inject constructor(
     }
 
     /**
+     * Enrich overdue charge with parking transaction data
+     */
+    private suspend fun enrichChargeWithTransactionData(charge: OverdueCharge): OverdueCharge {
+        return try {
+            if (charge.transactionId.isEmpty()) return charge
+
+            val doc = db.collection("parking_transactions")
+                .document(charge.transactionId)
+                .get()
+                .await()
+
+            if (doc.exists()) {
+                val data = doc.data
+                charge.copy(
+                    parkingStatus = data?.get("status") as? String ?: charge.parkingStatus,
+                    transactionPaymentStatus = data?.get("paymentStatus") as? String ?: charge.transactionPaymentStatus
+                )
+            } else {
+                charge
+            }
+        } catch (e: Exception) {
+            Log.e("OverdueChargesVM", "Error enriching charge ${charge.id}: ${e.message}")
+            charge
+        }
+    }
+
+    /**
      * Mark an overdue charge as paid
+     * Also updates the linked parking transaction payment status
      */
     fun markAsPaid(chargeId: String) {
         viewModelScope.launch {
             _isLoading.value = true
-            
+
             val charge = _overdueCharges.value.find { it.id == chargeId }
             if (charge != null) {
                 val updatedCharge = charge.copy(
                     status = "PAID",
                     paymentStatus = "COMPLETED",
+                    transactionPaymentStatus = "COMPLETED",
                     paymentDate = System.currentTimeMillis()
                 )
-                
+
                 val result = overdueChargeRepository.updateOverdueCharge(updatedCharge)
                 result.onSuccess {
+                    // Also update the parking transaction if linked
+                    if (charge.transactionId.isNotEmpty()) {
+                        try {
+                            db.collection("parking_transactions")
+                                .document(charge.transactionId)
+                                .update("paymentStatus", "COMPLETED")
+                                .await()
+                            Log.d("OverdueChargesVM", "Updated transaction ${charge.transactionId} payment status to COMPLETED")
+                        } catch (e: Exception) {
+                            Log.e("OverdueChargesVM", "Failed to update transaction payment status: ${e.message}")
+                        }
+                    }
                     _errorMessage.value = null
                 }.onFailure { error ->
                     _errorMessage.value = error.message ?: "Failed to mark as paid"
                 }
             }
-            
+
             _isLoading.value = false
         }
     }

@@ -28,6 +28,9 @@ class OverdueChargeRepository @Inject constructor(
                 "paymentStatus" to charge.paymentStatus,
                 "paymentDate" to charge.paymentDate,
                 "amountPaid" to charge.amountPaid,
+                "transactionId" to charge.transactionId,
+                "parkingStatus" to charge.parkingStatus,
+                "transactionPaymentStatus" to charge.transactionPaymentStatus,
                 "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
                 "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
             )
@@ -57,6 +60,9 @@ class OverdueChargeRepository @Inject constructor(
                 "paymentStatus" to charge.paymentStatus,
                 "paymentDate" to charge.paymentDate,
                 "amountPaid" to charge.amountPaid,
+                "transactionId" to charge.transactionId,
+                "parkingStatus" to charge.parkingStatus,
+                "transactionPaymentStatus" to charge.transactionPaymentStatus,
                 "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
             )
             db.collection("overdue_charges").document(charge.id).update(chargeMap as Map<String, Any>).await()
@@ -89,6 +95,9 @@ class OverdueChargeRepository @Inject constructor(
                     paymentStatus = data["paymentStatus"] as? String ?: "PENDING",
                     paymentDate = (data["paymentDate"] as? Number)?.toLong(),
                     amountPaid = (data["amountPaid"] as? Number)?.toDouble() ?: 0.0,
+                    transactionId = data["transactionId"] as? String ?: "",
+                    parkingStatus = data["parkingStatus"] as? String ?: "",
+                    transactionPaymentStatus = data["transactionPaymentStatus"] as? String ?: "",
                     createdAt = TimestampUtils.toMillis(data["createdAt"]),
                     updatedAt = TimestampUtils.toMillis(data["updatedAt"])
                 )
@@ -129,6 +138,9 @@ class OverdueChargeRepository @Inject constructor(
                             paymentStatus = data["paymentStatus"] as? String ?: "PENDING",
                             paymentDate = (data["paymentDate"] as? Number)?.toLong(),
                             amountPaid = (data["amountPaid"] as? Number)?.toDouble() ?: 0.0,
+                            transactionId = data["transactionId"] as? String ?: "",
+                            parkingStatus = data["parkingStatus"] as? String ?: "",
+                            transactionPaymentStatus = data["transactionPaymentStatus"] as? String ?: "",
                             createdAt = TimestampUtils.toMillis(data["createdAt"]),
                             updatedAt = TimestampUtils.toMillis(data["updatedAt"])
                         )
@@ -172,6 +184,9 @@ class OverdueChargeRepository @Inject constructor(
                             paymentStatus = data["paymentStatus"] as? String ?: "PENDING",
                             paymentDate = (data["paymentDate"] as? Number)?.toLong(),
                             amountPaid = (data["amountPaid"] as? Number)?.toDouble() ?: 0.0,
+                            transactionId = data["transactionId"] as? String ?: "",
+                            parkingStatus = data["parkingStatus"] as? String ?: "",
+                            transactionPaymentStatus = data["transactionPaymentStatus"] as? String ?: "",
                             createdAt = TimestampUtils.toMillis(data["createdAt"]),
                             updatedAt = TimestampUtils.toMillis(data["updatedAt"])
                         )
@@ -214,6 +229,9 @@ class OverdueChargeRepository @Inject constructor(
                             paymentStatus = data["paymentStatus"] as? String ?: "PENDING",
                             paymentDate = (data["paymentDate"] as? Number)?.toLong(),
                             amountPaid = (data["amountPaid"] as? Number)?.toDouble() ?: 0.0,
+                            transactionId = data["transactionId"] as? String ?: "",
+                            parkingStatus = data["parkingStatus"] as? String ?: "",
+                            transactionPaymentStatus = data["transactionPaymentStatus"] as? String ?: "",
                             createdAt = TimestampUtils.toMillis(data["createdAt"]),
                             updatedAt = TimestampUtils.toMillis(data["updatedAt"])
                         )
@@ -253,6 +271,9 @@ class OverdueChargeRepository @Inject constructor(
                             paymentStatus = data["paymentStatus"] as? String ?: "PENDING",
                             paymentDate = (data["paymentDate"] as? Number)?.toLong(),
                             amountPaid = (data["amountPaid"] as? Number)?.toDouble() ?: 0.0,
+                            transactionId = data["transactionId"] as? String ?: "",
+                            parkingStatus = data["parkingStatus"] as? String ?: "",
+                            transactionPaymentStatus = data["transactionPaymentStatus"] as? String ?: "",
                             createdAt = TimestampUtils.toMillis(data["createdAt"]),
                             updatedAt = TimestampUtils.toMillis(data["updatedAt"])
                         )

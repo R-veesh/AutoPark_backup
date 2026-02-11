@@ -196,6 +196,29 @@ class InvoiceGenerationService @Inject constructor(
                         val existingCharges = existingChargesResult.getOrNull() ?: emptyList()
                         
                         if (existingCharges.isEmpty()) {
+                            // Get the first transaction from the invoice to link parking status
+                            val firstTransactionId = invoice.transactionIds.firstOrNull() ?: ""
+                            var parkingStatus = ""
+                            var transactionPaymentStatus = ""
+                            
+                            // If there's a linked transaction, get its status
+                            if (firstTransactionId.isNotEmpty()) {
+                                try {
+                                    val transactionDoc = db.collection("parking_transactions")
+                                        .document(firstTransactionId)
+                                        .get()
+                                        .await()
+                                    
+                                    if (transactionDoc.exists()) {
+                                        val data = transactionDoc.data
+                                        parkingStatus = data?.get("status") as? String ?: ""
+                                        transactionPaymentStatus = data?.get("paymentStatus") as? String ?: ""
+                                    }
+                                } catch (e: Exception) {
+                                    // Log error but continue without transaction data
+                                }
+                            }
+                            
                             val overdueCharge = OverdueCharge(
                                 ownerId = userId,
                                 ownerName = ownerName,
@@ -218,7 +241,10 @@ class InvoiceGenerationService @Inject constructor(
                                 daysOverdue = overdueDays,
                                 dueDate = invoice.dueDate,
                                 status = "PENDING",
-                                paymentStatus = "PENDING"
+                                paymentStatus = "PENDING",
+                                transactionId = firstTransactionId,
+                                parkingStatus = parkingStatus,
+                                transactionPaymentStatus = transactionPaymentStatus
                             )
                             
                             val chargeIdResult = overdueChargeRepository.addOverdueCharge(overdueCharge)

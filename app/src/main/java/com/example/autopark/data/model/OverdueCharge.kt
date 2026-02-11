@@ -72,6 +72,19 @@ data class OverdueCharge(
     @set:PropertyName("amountPaid")
     var amountPaid: Double = 0.0,
 
+    // Reference to parking transaction for real-time payment tracking
+    @get:PropertyName("transactionId")
+    @set:PropertyName("transactionId")
+    var transactionId: String = "",
+
+    @get:PropertyName("parkingStatus")
+    @set:PropertyName("parkingStatus")
+    var parkingStatus: String = "", // ACTIVE, COMPLETED
+
+    @get:PropertyName("transactionPaymentStatus")
+    @set:PropertyName("transactionPaymentStatus")
+    var transactionPaymentStatus: String = "", // PENDING, COMPLETED
+
     // Store timestamps as Long to avoid deserialization issues
     @get:PropertyName("createdAt")
     @set:PropertyName("createdAt")

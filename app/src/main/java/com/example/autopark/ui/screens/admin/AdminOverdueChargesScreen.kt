@@ -32,10 +32,16 @@ fun AdminOverdueChargesScreen(
     var showPaymentDialog by remember { mutableStateOf<OverdueCharge?>(null) }
     var filterStatus by remember { mutableStateOf("ALL") }
 
-    val filteredCharges = if (filterStatus == "ALL") {
-        overdueCharges
-    } else {
-        overdueCharges.filter { it.status == filterStatus }
+    val filteredCharges = when (filterStatus) {
+        "ALL" -> overdueCharges
+        "ACTIVE_PAYMENT" -> overdueCharges.filter { it.parkingStatus == "ACTIVE" }
+        "PENDING" -> overdueCharges.filter { 
+            it.parkingStatus == "COMPLETED" && it.transactionPaymentStatus == "PENDING" 
+        }
+        "PAID" -> overdueCharges.filter { 
+            it.parkingStatus == "COMPLETED" && it.transactionPaymentStatus == "COMPLETED" 
+        }
+        else -> overdueCharges.filter { it.status == filterStatus }
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -155,22 +161,54 @@ fun AdminOverdueChargesScreen(
                     modifier = Modifier.padding(16.dp)
                 ) {
                     Text(
-                        text = "Total Overdue Amount",
+                        text = "Payment Overview",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onErrorContainer
                     )
+                    
+                    // Active Payment Count
+                    val activeCount = overdueCharges.count { it.parkingStatus == "ACTIVE" }
+                    Text(
+                        text = "$activeCount Active Payment",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                    
+                    // Pending Payment Count
+                    val pendingCount = overdueCharges.count { 
+                        it.parkingStatus == "COMPLETED" && it.transactionPaymentStatus == "PENDING" 
+                    }
+                    Text(
+                        text = "$pendingCount Pending Payment",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                    
+                    // Paid Count
+                    val paidCount = overdueCharges.count { 
+                        it.parkingStatus == "COMPLETED" && it.transactionPaymentStatus == "COMPLETED" 
+                    }
+                    Text(
+                        text = "$paidCount Paid",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                    
+                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    
                     Text(
                         text = CurrencyFormatter.formatCurrency(
-                            overdueCharges.filter { it.status == "PENDING" }
-                                .sumOf { it.totalAmount }
+                            overdueCharges.filter { 
+                                it.parkingStatus == "COMPLETED" && it.transactionPaymentStatus == "PENDING" 
+                            }.sumOf { it.totalAmount }
                         ),
                         style = MaterialTheme.typography.headlineLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onErrorContainer
                     )
                     Text(
-                        text = "${overdueCharges.count { it.status == "PENDING" }} pending charges",
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = "Total Pending Amount",
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onErrorContainer
                     )
                 }
@@ -189,14 +227,19 @@ fun AdminOverdueChargesScreen(
                     label = { Text("All (${overdueCharges.size})") }
                 )
                 FilterChip(
+                    selected = filterStatus == "ACTIVE_PAYMENT",
+                    onClick = { filterStatus = "ACTIVE_PAYMENT" },
+                    label = { Text("Active (${overdueCharges.count { it.parkingStatus == "ACTIVE" }})") }
+                )
+                FilterChip(
                     selected = filterStatus == "PENDING",
                     onClick = { filterStatus = "PENDING" },
-                    label = { Text("Pending (${overdueCharges.count { it.status == "PENDING" }})") }
+                    label = { Text("Pending (${overdueCharges.count { it.parkingStatus == "COMPLETED" && it.transactionPaymentStatus == "PENDING" }})") }
                 )
                 FilterChip(
                     selected = filterStatus == "PAID",
                     onClick = { filterStatus = "PAID" },
-                    label = { Text("Paid (${overdueCharges.count { it.status == "PAID" }})") }
+                    label = { Text("Paid (${overdueCharges.count { it.parkingStatus == "COMPLETED" && it.transactionPaymentStatus == "COMPLETED" }})") }
                 )
             }
 
@@ -335,21 +378,35 @@ fun OverdueChargeCard(
                     )
                 }
                 
+                // Payment Status Badge
+                val paymentStatusText = when {
+                    charge.parkingStatus == "ACTIVE" -> "Active Payment"
+                    charge.parkingStatus == "COMPLETED" && charge.transactionPaymentStatus == "COMPLETED" -> "Paid"
+                    charge.parkingStatus == "COMPLETED" && charge.transactionPaymentStatus == "PENDING" -> "Pending"
+                    else -> charge.status
+                }
+                
+                val paymentStatusColor = when {
+                    charge.parkingStatus == "ACTIVE" -> MaterialTheme.colorScheme.tertiaryContainer
+                    charge.parkingStatus == "COMPLETED" && charge.transactionPaymentStatus == "COMPLETED" -> MaterialTheme.colorScheme.primaryContainer
+                    else -> MaterialTheme.colorScheme.errorContainer
+                }
+                
+                val paymentStatusTextColor = when {
+                    charge.parkingStatus == "ACTIVE" -> MaterialTheme.colorScheme.onTertiaryContainer
+                    charge.parkingStatus == "COMPLETED" && charge.transactionPaymentStatus == "COMPLETED" -> MaterialTheme.colorScheme.onPrimaryContainer
+                    else -> MaterialTheme.colorScheme.onErrorContainer
+                }
+                
                 Surface(
-                    color = if (charge.status == "PENDING")
-                        MaterialTheme.colorScheme.errorContainer
-                    else
-                        MaterialTheme.colorScheme.primaryContainer,
+                    color = paymentStatusColor,
                     shape = MaterialTheme.shapes.small
                 ) {
                     Text(
-                        text = charge.status,
+                        text = paymentStatusText,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                         style = MaterialTheme.typography.labelMedium,
-                        color = if (charge.status == "PENDING")
-                            MaterialTheme.colorScheme.onErrorContainer
-                        else
-                            MaterialTheme.colorScheme.onPrimaryContainer
+                        color = paymentStatusTextColor
                     )
                 }
             }
@@ -410,11 +467,38 @@ fun OverdueChargeCard(
                     )
                 }
                 
-                if (charge.status == "PENDING") {
+                // Show Mark as Paid button only for completed parking with pending payment
+                if (charge.parkingStatus == "COMPLETED" && charge.transactionPaymentStatus == "PENDING") {
                     Button(onClick = onMarkAsPaid) {
                         Icon(Icons.Default.CheckCircle, contentDescription = null)
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Mark Paid")
+                    }
+                } else if (charge.parkingStatus == "ACTIVE") {
+                    // Show info for active parking
+                    Surface(
+                        color = MaterialTheme.colorScheme.tertiaryContainer,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Text(
+                            text = "Vehicle Parked",
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                    }
+                } else if (charge.parkingStatus == "COMPLETED" && charge.transactionPaymentStatus == "COMPLETED") {
+                    // Show paid status
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Text(
+                            text = "✓ Payment Complete",
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
                     }
                 }
             }
